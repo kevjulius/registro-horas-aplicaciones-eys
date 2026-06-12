@@ -685,7 +685,10 @@ function Dashboard({ entries, teams }: { entries: TimeEntry[]; teams: Team[] }) 
   }, [monthEntries, selectedTeam]);
 
   const maxHours = Math.max(expectedHours, ...chartRows.map((row) => row.hours), 1);
-  const expectedLineTop = `${Math.max(0, 100 - (expectedHours / maxHours) * 100)}%`;
+  const chartTrackTop = 78;
+  const chartTrackHeight = 220;
+  const expectedRatio = Math.max(0, Math.min(1, expectedHours / maxHours));
+  const expectedLineTop = `${chartTrackTop + (1 - expectedRatio) * chartTrackHeight}px`;
   const totalHours = chartRows.reduce((sum, row) => sum + row.hours, 0);
   const belowExpected = chartRows.filter((row) => row.hours < expectedHours).length;
 
