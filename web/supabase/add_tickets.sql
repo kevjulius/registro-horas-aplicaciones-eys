@@ -1,0 +1,60 @@
+-- Agrega gestion de tickets y visibilidad por responsable.
+-- Ejecutar en Supabase SQL Editor.
+
+create table if not exists public.tickets (
+  id uuid primary key default gen_random_uuid(),
+  codigo_tck text not null unique,
+  fecha_solicitud date not null,
+  sistema text not null,
+  formato text not null,
+  usuario_solicitante text not null,
+  fecha_recepcion date not null,
+  subject_correo text not null,
+  alcance_correo text not null,
+  tipo_atencion text not null check (tipo_atencion in ('Requerimiento', 'Proyecto', 'Anteproyecto', 'Soporte', 'Monitoreo', 'Incidencia', 'Actividades Internas')),
+  estado text not null check (estado in ('Cerrado', 'Pendiente', 'En Proceso', 'Cancelado')),
+  fecha_termino date not null,
+  tipo_tck text not null check (tipo_tck in ('Personal', 'Grupal')),
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.ticket_responsables (
+  ticket_id uuid not null references public.tickets(id) on delete cascade,
+  resource_name text not null references public.resources(name) on update cascade on delete restrict,
+  primary key (ticket_id, resource_name)
+);
+
+alter table public.tickets enable row level security;
+alter table public.ticket_responsables enable row level security;
+
+create or replace function public.current_ticket_ids()
+returns table(ticket_id uuid)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select tr.ticket_id
+  from public.ticket_responsables tr
+  where tr.resource_name = public.current_resource_name()
+$$;
+
+drop policy if exists "tickets read assigned or admin" on public.tickets;
+drop policy if exists "ticket responsables read assigned or admin" on public.ticket_responsables;
+
+create policy "tickets read assigned or admin" on public.tickets
+for select using (
+  active = true
+  and (
+    public.is_admin()
+    or id in (select ticket_id from public.current_ticket_ids())
+  )
+);
+
+create policy "ticket responsables read assigned or admin" on public.ticket_responsables
+for select using (
+  public.is_admin()
+  or ticket_id in (select ticket_id from public.current_ticket_ids())
+);

@@ -52,3 +52,34 @@ export type TimeEntry = {
   created_by?: string | null;
   modificado: string;
 };
+
+export type TicketStatus = "Cerrado" | "Pendiente" | "En Proceso" | "Cancelado";
+export type TicketWorkType = "Personal" | "Grupal";
+export type TicketAttentionType =
+  | "Requerimiento"
+  | "Proyecto"
+  | "Anteproyecto"
+  | "Soporte"
+  | "Monitoreo"
+  | "Incidencia"
+  | "Actividades Internas";
+
+export type Ticket = {
+  id: string;
+  codigo_tck: string;
+  fecha_solicitud: string;
+  sistema: string;
+  formato: string;
+  usuario_solicitante: string;
+  fecha_recepcion: string;
+  subject_correo: string;
+  alcance_correo: string;
+  tipo_atencion: TicketAttentionType;
+  estado: TicketStatus;
+  fecha_termino: string;
+  tipo_tck: TicketWorkType;
+  responsables: string[];
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};

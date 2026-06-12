@@ -10,23 +10,36 @@ import {
   loadMasters,
   loadProfiles,
   loadTeams,
+  loadTickets,
   saveEntries,
   saveEntry,
   saveMasters,
   saveProfiles,
   saveTeams,
+  saveTickets,
   signIn,
   signOut,
   updatePassword
 } from "@/lib/repository";
-import type { MasterData, Profile, Team, TimeEntry } from "@/lib/types";
+import type { MasterData, Profile, Team, Ticket, TicketAttentionType, TimeEntry } from "@/lib/types";
 
 const estados = ["En Proceso", "Cerrado", "Pendiente"] as const;
+const ticketEstados = ["Cerrado", "Pendiente", "En Proceso", "Cancelado"] as const;
+const ticketAttentionTypes: TicketAttentionType[] = [
+  "Requerimiento",
+  "Proyecto",
+  "Anteproyecto",
+  "Soporte",
+  "Monitoreo",
+  "Incidencia",
+  "Actividades Internas"
+];
 const siNo = ["No", "Si"] as const;
 const menuItems = [
   { key: "registrar", label: "Registrar Atención" },
   { key: "carga", label: "Carga Masiva - Atención" },
   { key: "listado", label: "Listado de Atenciones" },
+  { key: "tickets", label: "Tickets" },
   { key: "dashboard", label: "Dashboard" },
   { key: "admin", label: "Administración" }
 ] as const;
@@ -219,6 +232,36 @@ function emptyEntry(profile: Profile | null): TimeEntry {
   };
 }
 
+function emptyTicket(): Ticket {
+  return {
+    id: `new-${crypto.randomUUID()}`,
+    codigo_tck: "",
+    fecha_solicitud: today(),
+    sistema: "",
+    formato: "",
+    usuario_solicitante: "",
+    fecha_recepcion: today(),
+    subject_correo: "",
+    alcance_correo: "",
+    tipo_atencion: "Requerimiento",
+    estado: "Pendiente",
+    fecha_termino: today(),
+    tipo_tck: "Personal",
+    responsables: [],
+    active: true
+  };
+}
+
+function ticketMatchesEntry(ticket: Ticket, entry: TimeEntry, profile: Profile) {
+  if (ticket.codigo_tck.toUpperCase() !== entry.codigo_tck.trim().toUpperCase()) return false;
+  if (profile.role === "trabajador" && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
+  return true;
+}
+
+function ticketCodeOptions(tickets: Ticket[]) {
+  return tickets.map((ticket) => ticket.codigo_tck).sort((a, b) => a.localeCompare(b));
+}
+
 function SelectField({
   label,
   value,
@@ -262,12 +305,14 @@ function MultiSelectField({
   label,
   value,
   options,
-  onChange
+  onChange,
+  disabled
 }: {
   label: string;
   value: string;
   options: readonly string[];
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   const selected = splitSociedades(value);
 
@@ -287,6 +332,7 @@ function MultiSelectField({
             key={option}
             className={selected.includes(option) ? "active" : ""}
             type="button"
+            disabled={disabled}
             onClick={() => toggle(option)}
           >
             {option}
@@ -309,13 +355,17 @@ export default function Home() {
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [message, setMessage] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
 
   async function refresh(currentProfile = profile) {
     const nextMasters = await loadMasters();
     setMasters(nextMasters);
-    if (currentProfile) setEntries(await loadEntries(currentProfile));
+    if (currentProfile) {
+      setEntries(await loadEntries(currentProfile));
+      setTickets(await loadTickets(currentProfile));
+    }
     setProfiles(await loadProfiles());
     setTeams(await loadTeams());
   }
@@ -459,9 +509,10 @@ export default function Home() {
       </aside>
       <section className="main">
         <h1>EyS Aplicaciones</h1>
-        {page === "registrar" && <Register profile={profile} masters={masters} onSaved={() => refresh(profile)} />}
-        {page === "carga" && <Bulk profile={profile} masters={masters} onSaved={() => refresh(profile)} />}
-        {page === "listado" && <Entries profile={profile} masters={masters} entries={entries} onChanged={() => refresh(profile)} />}
+        {page === "registrar" && <Register profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
+        {page === "carga" && <Bulk profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
+        {page === "listado" && <Entries profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
+        {page === "tickets" && <Tickets profile={profile} masters={masters} tickets={tickets} onChanged={() => refresh(profile)} />}
         {page === "dashboard" &&
           (profile.role === "administracion" ? (
             <Dashboard entries={entries} teams={teams} />
@@ -479,7 +530,7 @@ export default function Home() {
   );
 }
 
-function Register({ profile, masters, onSaved }: { profile: Profile; masters: MasterData; onSaved: () => void }) {
+function Register({ profile, masters, tickets, onSaved }: { profile: Profile; masters: MasterData; tickets: Ticket[]; onSaved: () => void }) {
   const [entry, setEntry] = useState<TimeEntry>(() => emptyEntry(profile));
   const [saveMessage, setSaveMessage] = useState("");
 
@@ -491,6 +542,10 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
     event.preventDefault();
     if (!entry.codigo_tck || !entry.sociedad || !entry.horas_invertidas) {
       setSaveMessage("Completa TCK, sociedad y horas antes de guardar.");
+      return;
+    }
+    if (!tickets.some((ticket) => ticketMatchesEntry(ticket, entry, profile))) {
+      setSaveMessage("Selecciona un ticket existente asignado a tu usuario.");
       return;
     }
     if (entry.horas_invertidas <= 0 || entry.horas_invertidas > 8) {
@@ -516,7 +571,10 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
         <div className="grid grid-3">
         <label>
           Codigo TCK
-          <input value={entry.codigo_tck} onChange={(e) => patch({ codigo_tck: e.target.value })} />
+          <select value={entry.codigo_tck} onChange={(e) => patch({ codigo_tck: e.target.value })}>
+            <option value="">Selecciona</option>
+            {ticketCodeOptions(tickets).map((code) => <option key={code} value={code}>{code}</option>)}
+          </select>
         </label>
         <label>
           Fecha de reporte
@@ -580,10 +638,10 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
   );
 }
 
-function Bulk({ profile, masters, onSaved }: { profile: Profile; masters: MasterData; onSaved: () => void }) {
+function Bulk({ profile, masters, tickets, onSaved }: { profile: Profile; masters: MasterData; tickets: Ticket[]; onSaved: () => void }) {
   const [text, setText] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
-  const parsed = useMemo(() => (text.trim() ? parseBulkText(text, masters) : { records: [], errors: [] }), [text, masters]);
+  const parsed = useMemo(() => (text.trim() ? parseBulkText(text, masters, tickets, profile) : { records: [], errors: [] }), [text, masters, tickets, profile]);
   const blocked = profile.role === "trabajador" && parsed.records.some((record) => record.recurso !== profile.resource_name);
 
   async function save() {
@@ -651,6 +709,192 @@ function Bulk({ profile, masters, onSaved }: { profile: Profile; masters: Master
         </div>
       )}
       <button disabled={blocked || parsed.errors.length > 0 || parsed.records.length === 0} onClick={save}>Guardar carga masiva</button>
+    </section>
+  );
+}
+
+function Tickets({ profile, masters, tickets, onChanged }: { profile: Profile; masters: MasterData; tickets: Ticket[]; onChanged: () => void }) {
+  const [localTickets, setLocalTickets] = useState(tickets);
+  const [ticketMessage, setTicketMessage] = useState("");
+  const isAdmin = profile.role === "administracion";
+
+  useEffect(() => {
+    setLocalTickets(tickets);
+  }, [tickets]);
+
+  function patchTicket(index: number, values: Partial<Ticket>) {
+    setLocalTickets((current) => {
+      const next = [...current];
+      const ticket = { ...next[index], ...values };
+      if (values.responsables || values.tipo_tck) {
+        ticket.tipo_tck = ticket.responsables.length > 1 ? "Grupal" : "Personal";
+      }
+      next[index] = ticket;
+      return next;
+    });
+  }
+
+  function addTicket() {
+    setLocalTickets((current) => [emptyTicket(), ...current]);
+    setTicketMessage("");
+  }
+
+  function removeTicket(index: number) {
+    setLocalTickets((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function toggleResponsible(index: number, resource: string) {
+    const ticket = localTickets[index];
+    const responsables = ticket.responsables.includes(resource)
+      ? ticket.responsables.filter((item) => item !== resource)
+      : [...ticket.responsables, resource];
+    patchTicket(index, { responsables });
+  }
+
+  function validateTickets() {
+    for (const ticket of localTickets) {
+      const required = [
+        ticket.fecha_solicitud,
+        ticket.sistema,
+        ticket.formato,
+        ticket.usuario_solicitante,
+        ticket.fecha_recepcion,
+        ticket.subject_correo,
+        ticket.alcance_correo,
+        ticket.tipo_atencion,
+        ticket.estado,
+        ticket.fecha_termino,
+        ticket.tipo_tck
+      ];
+      if (required.some((value) => !String(value ?? "").trim())) return "Todos los campos del ticket son obligatorios.";
+      if (ticket.tipo_tck === "Personal" && ticket.responsables.length !== 1) return "Un ticket Personal debe tener exactamente un responsable.";
+      if (ticket.tipo_tck === "Grupal" && ticket.responsables.length < 2) return "Un ticket Grupal debe tener dos o mas responsables.";
+    }
+    return "";
+  }
+
+  async function persistTickets() {
+    const validation = validateTickets();
+    if (validation) {
+      setTicketMessage(validation);
+      return;
+    }
+    try {
+      const saved = await saveTickets(localTickets);
+      setLocalTickets(saved);
+      setTicketMessage("Tickets guardados.");
+      onChanged();
+    } catch (error) {
+      setTicketMessage(error instanceof Error ? error.message : "No se pudo guardar tickets.");
+    }
+  }
+
+  return (
+    <section className="grid">
+      <div className="section-head">
+        <div>
+          <h2>Tickets</h2>
+          <p className="muted">{isAdmin ? "Gestiona tickets y responsables." : "Solo ves los tickets asignados a tu recurso."}</p>
+        </div>
+        <div className="toolbar">
+          <span className="pill">Tickets: {localTickets.length}</span>
+          {isAdmin && <button type="button" onClick={addTicket}><Plus size={16} /> Nuevo ticket</button>}
+        </div>
+      </div>
+
+      {ticketMessage && <pre className="notice">{ticketMessage}</pre>}
+
+      <div className="ticket-list">
+        {localTickets.map((ticket, index) => (
+          <div className="card grid ticket-card" key={ticket.id}>
+            <div className="section-head compact">
+              <div>
+                <h3>{ticket.codigo_tck || "Nuevo ticket"}</h3>
+                <p className="muted">{ticket.tipo_atencion} - {ticket.estado}</p>
+              </div>
+              {isAdmin && (
+                <button className="secondary icon-button" type="button" title="Eliminar ticket" onClick={() => removeTicket(index)}>
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-4">
+              <label>
+                Codigo TCK
+                <input value={ticket.codigo_tck || "Autogenerado"} disabled />
+              </label>
+              <label>
+                Tipo de atencion
+                <select disabled={!isAdmin} value={ticket.tipo_atencion} onChange={(event) => patchTicket(index, { tipo_atencion: event.target.value as Ticket["tipo_atencion"] })}>
+                  {ticketAttentionTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </label>
+              <label>
+                Estado
+                <select disabled={!isAdmin} value={ticket.estado} onChange={(event) => patchTicket(index, { estado: event.target.value as Ticket["estado"] })}>
+                  {ticketEstados.map((state) => <option key={state} value={state}>{state}</option>)}
+                </select>
+              </label>
+              <label>
+                Tipo de ticket
+                <input value={ticket.tipo_tck} disabled />
+              </label>
+            </div>
+
+            <div className="grid grid-4">
+              <label>
+                Fecha solicitud
+                <input disabled={!isAdmin} type="date" value={ticket.fecha_solicitud} onChange={(event) => patchTicket(index, { fecha_solicitud: event.target.value })} />
+              </label>
+              <label>
+                Fecha recepcion
+                <input disabled={!isAdmin} type="date" value={ticket.fecha_recepcion} onChange={(event) => patchTicket(index, { fecha_recepcion: event.target.value })} />
+              </label>
+              <label>
+                Fecha termino
+                <input disabled={!isAdmin} type="date" value={ticket.fecha_termino} onChange={(event) => patchTicket(index, { fecha_termino: event.target.value })} />
+              </label>
+              <SelectField label="Usuario solicitante" value={ticket.usuario_solicitante} options={masters.usuariosReporta} disabled={!isAdmin} onChange={(value) => patchTicket(index, { usuario_solicitante: value })} />
+            </div>
+
+            <div className="grid grid-3">
+              <SelectField label="Sistema" value={ticket.sistema} options={masters.aplicaciones} disabled={!isAdmin} onChange={(value) => patchTicket(index, { sistema: value })} />
+              <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} disabled={!isAdmin} onChange={(value) => patchTicket(index, { formato: value })} />
+              <label>
+                Responsables
+                <div className="multi-select team-select">
+                  {masters.recursos.map((resource) => (
+                    <button
+                      key={resource}
+                      type="button"
+                      disabled={!isAdmin}
+                      className={ticket.responsables.includes(resource) ? "active" : ""}
+                      onClick={() => toggleResponsible(index, resource)}
+                    >
+                      {resource}
+                    </button>
+                  ))}
+                </div>
+              </label>
+            </div>
+
+            <div className="grid grid-2">
+              <label>
+                Subject correo
+                <input disabled={!isAdmin} value={ticket.subject_correo} onChange={(event) => patchTicket(index, { subject_correo: event.target.value })} />
+              </label>
+              <label>
+                Alcance del correo
+                <textarea disabled={!isAdmin} value={ticket.alcance_correo} onChange={(event) => patchTicket(index, { alcance_correo: event.target.value })} />
+              </label>
+            </div>
+          </div>
+        ))}
+        {localTickets.length === 0 && <div className="notice">No hay tickets para mostrar.</div>}
+      </div>
+
+      {isAdmin && <button type="button" onClick={persistTickets}>Guardar tickets</button>}
     </section>
   );
 }
@@ -767,7 +1011,7 @@ function Dashboard({ entries, teams }: { entries: TimeEntry[]; teams: Team[] }) 
   );
 }
 
-function Entries({ profile, masters, entries, onChanged }: { profile: Profile; masters: MasterData; entries: TimeEntry[]; onChanged: () => void }) {
+function Entries({ profile, masters, tickets, entries, onChanged }: { profile: Profile; masters: MasterData; tickets: Ticket[]; entries: TimeEntry[]; onChanged: () => void }) {
   const [resourceFilter, setResourceFilter] = useState("Todos");
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [codeFilter, setCodeFilter] = useState("");
@@ -810,6 +1054,10 @@ function Entries({ profile, masters, entries, onChanged }: { profile: Profile; m
     if (!editingEntry) return;
     if (!editingEntry.codigo_tck || !editingEntry.sociedad || !editingEntry.horas_invertidas) {
       setEditMessage("Completa TCK, sociedad y horas antes de guardar.");
+      return;
+    }
+    if (!tickets.some((ticket) => ticketMatchesEntry(ticket, editingEntry, profile))) {
+      setEditMessage("Selecciona un ticket existente asignado a tu usuario.");
       return;
     }
     if (editingEntry.horas_invertidas <= 0 || editingEntry.horas_invertidas > 8) {
@@ -880,7 +1128,10 @@ function Entries({ profile, masters, entries, onChanged }: { profile: Profile; m
           <div className="grid grid-3">
             <label>
               Codigo TCK
-              <input value={editingEntry.codigo_tck} onChange={(e) => patchEditing({ codigo_tck: e.target.value })} />
+              <select value={editingEntry.codigo_tck} onChange={(e) => patchEditing({ codigo_tck: e.target.value })}>
+                <option value="">Selecciona</option>
+                {ticketCodeOptions(tickets).map((code) => <option key={code} value={code}>{code}</option>)}
+              </select>
             </label>
             <label>
               Fecha reporte

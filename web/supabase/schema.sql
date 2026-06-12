@@ -63,6 +63,31 @@ create table public.resource_teams (
   primary key (resource_name, team_id)
 );
 
+create table public.tickets (
+  id uuid primary key default gen_random_uuid(),
+  codigo_tck text not null unique,
+  fecha_solicitud date not null,
+  sistema text not null,
+  formato text not null,
+  usuario_solicitante text not null,
+  fecha_recepcion date not null,
+  subject_correo text not null,
+  alcance_correo text not null,
+  tipo_atencion text not null check (tipo_atencion in ('Requerimiento', 'Proyecto', 'Anteproyecto', 'Soporte', 'Monitoreo', 'Incidencia', 'Actividades Internas')),
+  estado text not null check (estado in ('Cerrado', 'Pendiente', 'En Proceso', 'Cancelado')),
+  fecha_termino date not null,
+  tipo_tck text not null check (tipo_tck in ('Personal', 'Grupal')),
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.ticket_responsables (
+  ticket_id uuid not null references public.tickets(id) on delete cascade,
+  resource_name text not null references public.resources(name) on update cascade on delete restrict,
+  primary key (ticket_id, resource_name)
+);
+
 create table public.time_entries (
   id uuid primary key default gen_random_uuid(),
   fecha_reporte date not null,
@@ -92,6 +117,8 @@ alter table public.attention_types enable row level security;
 alter table public.teams enable row level security;
 alter table public.profile_teams enable row level security;
 alter table public.resource_teams enable row level security;
+alter table public.tickets enable row level security;
+alter table public.ticket_responsables enable row level security;
 alter table public.time_entries enable row level security;
 
 create or replace function public.current_profile_role()
@@ -149,6 +176,18 @@ as $$
   where pt.profile_id = auth.uid()
 $$;
 
+create or replace function public.current_ticket_ids()
+returns table(ticket_id uuid)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select tr.ticket_id
+  from public.ticket_responsables tr
+  where tr.resource_name = public.current_resource_name()
+$$;
+
 create policy "profiles read own or admin" on public.profiles
 for select using (
   id = auth.uid()
@@ -163,6 +202,21 @@ create policy "attention read authenticated" on public.attention_types for selec
 create policy "teams read admin" on public.teams for select using (public.is_admin());
 create policy "profile teams read admin" on public.profile_teams for select using (public.is_admin());
 create policy "resource teams read admin" on public.resource_teams for select using (public.is_admin());
+
+create policy "tickets read assigned or admin" on public.tickets
+for select using (
+  active = true
+  and (
+    public.is_admin()
+    or id in (select ticket_id from public.current_ticket_ids())
+  )
+);
+
+create policy "ticket responsables read assigned or admin" on public.ticket_responsables
+for select using (
+  public.is_admin()
+  or ticket_id in (select ticket_id from public.current_ticket_ids())
+);
 
 create policy "entries read own or admin" on public.time_entries
 for select using (

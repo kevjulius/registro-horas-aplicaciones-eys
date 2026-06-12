@@ -1,4 +1,4 @@
-import type { MasterData, Profile, Team, TimeEntry } from "./types";
+import type { MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
 
 export const demoProfiles: Profile[] = [
   {
@@ -65,5 +65,25 @@ export const demoTeams: Team[] = [
     active: true,
     resources: ["Kevin Medina", "Evelyne Vera"],
     profile_ids: ["admin", "kevin"]
+  }
+];
+
+export const demoTickets: Ticket[] = [
+  {
+    id: "ticket-demo-1",
+    codigo_tck: "ACT001",
+    fecha_solicitud: "2026-06-11",
+    sistema: "BOT - CUL",
+    formato: "A126 - Hard discount",
+    usuario_solicitante: "Magalli Vera",
+    fecha_recepcion: "2026-06-11",
+    subject_correo: "Ticket de ejemplo",
+    alcance_correo: "Registro de ejemplo para validar el flujo.",
+    tipo_atencion: "Actividades Internas",
+    estado: "En Proceso",
+    fecha_termino: "2026-06-11",
+    tipo_tck: "Personal",
+    responsables: ["Kevin Medina"],
+    active: true
   }
 ];

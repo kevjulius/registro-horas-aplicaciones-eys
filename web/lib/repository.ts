@@ -1,13 +1,14 @@
 "use client";
 
-import { demoEntries, demoMasterData, demoProfiles, demoTeams } from "./demo-data";
+import { demoEntries, demoMasterData, demoProfiles, demoTeams, demoTickets } from "./demo-data";
 import { hasSupabaseConfig, supabase } from "./supabase";
-import type { MasterData, Profile, Team, TimeEntry } from "./types";
+import type { MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
 
 const entriesKey = "eys.time_entries";
 const profilesKey = "eys.profiles";
 const mastersKey = "eys.masters";
 const teamsKey = "eys.teams";
+const ticketsKey = "eys.tickets";
 
 function readLocal<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -131,6 +132,67 @@ export async function loadEntries(profile: Profile): Promise<TimeEntry[]> {
   const entries = readLocal(entriesKey, demoEntries);
   if (profile.role === "administracion") return entries;
   return entries.filter((entry) => entry.recurso === profile.resource_name);
+}
+
+function mapTicket(row: Record<string, unknown>): Ticket {
+  const links = (row.ticket_responsables ?? []) as Array<{ resource_name: string }>;
+  return {
+    id: String(row.id),
+    codigo_tck: String(row.codigo_tck ?? ""),
+    fecha_solicitud: String(row.fecha_solicitud ?? ""),
+    sistema: String(row.sistema ?? ""),
+    formato: String(row.formato ?? ""),
+    usuario_solicitante: String(row.usuario_solicitante ?? ""),
+    fecha_recepcion: String(row.fecha_recepcion ?? ""),
+    subject_correo: String(row.subject_correo ?? ""),
+    alcance_correo: String(row.alcance_correo ?? ""),
+    tipo_atencion: row.tipo_atencion as Ticket["tipo_atencion"],
+    estado: row.estado as Ticket["estado"],
+    fecha_termino: String(row.fecha_termino ?? ""),
+    tipo_tck: row.tipo_tck as Ticket["tipo_tck"],
+    responsables: links.map((item) => item.resource_name).sort((a, b) => a.localeCompare(b)),
+    active: Boolean(row.active),
+    created_at: row.created_at ? String(row.created_at) : undefined,
+    updated_at: row.updated_at ? String(row.updated_at) : undefined
+  };
+}
+
+export async function loadTickets(profile: Profile): Promise<Ticket[]> {
+  if (hasSupabaseConfig && supabase) {
+    const { data } = await supabase
+      .from("tickets")
+      .select("*, ticket_responsables(resource_name)")
+      .eq("active", true)
+      .order("codigo_tck");
+    const tickets = ((data ?? []) as Array<Record<string, unknown>>).map(mapTicket);
+    if (profile.role === "administracion") return tickets;
+    return tickets.filter((ticket) => ticket.responsables.includes(profile.resource_name ?? ""));
+  }
+
+  const tickets = readLocal(ticketsKey, demoTickets);
+  if (profile.role === "administracion") return tickets;
+  return tickets.filter((ticket) => ticket.responsables.includes(profile.resource_name ?? ""));
+}
+
+export async function saveTickets(tickets: Ticket[]): Promise<Ticket[]> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/admin/tickets", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ tickets })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo guardar tickets.");
+    }
+
+    const payload = (await response.json()) as { tickets: Ticket[] };
+    return payload.tickets;
+  }
+
+  writeLocal(ticketsKey, tickets);
+  return tickets;
 }
 
 export async function saveEntry(entry: TimeEntry) {
