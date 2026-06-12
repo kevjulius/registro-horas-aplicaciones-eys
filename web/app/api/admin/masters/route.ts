@@ -1,0 +1,105 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import type { MasterData, Profile } from "@/lib/types";
+
+const masterTables: Record<keyof MasterData, string> = {
+  recursos: "resources",
+  usuariosReporta: "reporter_users",
+  sociedades: "companies",
+  aplicaciones: "applications",
+  tiposAtencion: "attention_types"
+};
+
+function adminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    throw new Error("Falta NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.");
+  }
+
+  return createClient(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
+
+async function requireAdmin(request: Request, supabase: ReturnType<typeof adminClient>) {
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  if (!token) throw new Error("Sesion no valida.");
+
+  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !userData.user) throw new Error("Sesion no valida.");
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("role, active")
+    .eq("id", userData.user.id)
+    .single<Pick<Profile, "role" | "active">>();
+
+  if (profileError || !profile?.active || profile.role !== "administracion") {
+    throw new Error("Solo administracion puede modificar maestras.");
+  }
+}
+
+function uniqueClean(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+
+async function readMasters(supabase: ReturnType<typeof adminClient>): Promise<MasterData> {
+  const [resources, reporters, companies, apps, attention] = await Promise.all([
+    supabase.from("resources").select("name").eq("active", true).order("name"),
+    supabase.from("reporter_users").select("name").eq("active", true).order("name"),
+    supabase.from("companies").select("name").eq("active", true).order("name"),
+    supabase.from("applications").select("name").eq("active", true).order("name"),
+    supabase.from("attention_types").select("name").eq("active", true).order("name")
+  ]);
+
+  return {
+    recursos: (resources.data ?? []).map((item) => item.name),
+    usuariosReporta: (reporters.data ?? []).map((item) => item.name),
+    sociedades: (companies.data ?? []).map((item) => item.name),
+    aplicaciones: (apps.data ?? []).map((item) => item.name),
+    tiposAtencion: (attention.data ?? []).map((item) => item.name)
+  };
+}
+
+export async function PUT(request: Request) {
+  try {
+    const supabase = adminClient();
+    await requireAdmin(request, supabase);
+
+    const { masters } = (await request.json()) as { masters: MasterData };
+
+    for (const key of Object.keys(masterTables) as Array<keyof MasterData>) {
+      const table = masterTables[key];
+      const values = uniqueClean(masters[key] ?? []);
+      const valueSet = new Set(values);
+
+      if (values.length) {
+        const { error } = await supabase
+          .from(table)
+          .upsert(values.map((name) => ({ name, active: true })), { onConflict: "name" });
+        if (error) throw error;
+      }
+
+      const { data: existing, error: existingError } = await supabase.from(table).select("name");
+      if (existingError) throw existingError;
+
+      const toDeactivate = (existing ?? []).map((item) => item.name).filter((name) => !valueSet.has(name));
+      for (const name of toDeactivate) {
+        const { error } = await supabase.from(table).update({ active: false }).eq("name", name);
+        if (error) throw error;
+      }
+    }
+
+    return NextResponse.json({ masters: await readMasters(supabase) });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "No se pudo guardar maestras." },
+      { status: 500 }
+    );
+  }
+}
