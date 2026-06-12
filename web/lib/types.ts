@@ -13,8 +13,16 @@ export type MasterData = {
   recursos: string[];
   usuariosReporta: string[];
   aplicaciones: string[];
+  aplicacionesDetalle: ApplicationMaster[];
   sociedades: string[];
   tiposAtencion: string[];
+};
+
+export type ApplicationMaster = {
+  name: string;
+  company: string;
+  service: string;
+  fecha_creacion: string;
 };
 
 export type TimeEntry = {

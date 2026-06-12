@@ -29,6 +29,7 @@ const menuItems = [
 ] as const;
 
 type PageKey = (typeof menuItems)[number]["key"];
+type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle">;
 
 function xmlCell(value: string | number) {
   const escaped = String(value)
@@ -104,7 +105,7 @@ function downloadBulkTemplate(masters: MasterData, profile: Profile) {
     ["Campo", "Nota"],
     ["sociedad", "El desplegable permite elegir una sociedad. Para varias sociedades, escribirlas separadas con | usando valores exactos de la hoja Sociedades."],
     ["fechas", "Usar formato YYYY-MM-DD."],
-    ["horas_invertidas", "Usar numero mayor a cero."]
+    ["horas_invertidas", "Usar numero mayor a cero y maximo 8."]
   ])}
 </Workbook>`;
 
@@ -206,6 +207,56 @@ function SelectField({
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+function splitSociedades(value: string) {
+  return value
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function joinSociedades(values: string[]) {
+  return values.join(" | ");
+}
+
+function MultiSelectField({
+  label,
+  value,
+  options,
+  onChange
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+}) {
+  const selected = splitSociedades(value);
+
+  function toggle(option: string) {
+    const next = selected.includes(option)
+      ? selected.filter((item) => item !== option)
+      : [...selected, option];
+    onChange(joinSociedades(next));
+  }
+
+  return (
+    <label>
+      {label}
+      <div className="multi-select">
+        {options.map((option) => (
+          <button
+            key={option}
+            className={selected.includes(option) ? "active" : ""}
+            type="button"
+            onClick={() => toggle(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
     </label>
   );
 }
@@ -386,6 +437,7 @@ export default function Home() {
 
 function Register({ profile, masters, onSaved }: { profile: Profile; masters: MasterData; onSaved: () => void }) {
   const [entry, setEntry] = useState<TimeEntry>(() => emptyEntry(profile));
+  const [saveMessage, setSaveMessage] = useState("");
 
   function patch(values: Partial<TimeEntry>) {
     setEntry((current) => ({ ...current, ...values }));
@@ -393,9 +445,17 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!entry.codigo_tck || !entry.sociedad || !entry.horas_invertidas) return;
+    if (!entry.codigo_tck || !entry.sociedad || !entry.horas_invertidas) {
+      setSaveMessage("Completa TCK, sociedad y horas antes de guardar.");
+      return;
+    }
+    if (entry.horas_invertidas <= 0 || entry.horas_invertidas > 8) {
+      setSaveMessage("Horas invertidas debe ser mayor a 0 y maximo 8.");
+      return;
+    }
     await saveEntry({ ...entry, codigo_tck: entry.codigo_tck.toUpperCase(), modificado: new Date().toISOString() });
     setEntry(emptyEntry(profile));
+    setSaveMessage("Registro guardado con exito.");
     onSaved();
   }
 
@@ -416,13 +476,13 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
       <div className="grid grid-3">
         <SelectField label="Recurso" value={entry.recurso} options={masters.recursos} disabled={profile.role === "trabajador"} onChange={(v) => patch({ recurso: v })} />
         <SelectField label="Aplicativo" value={entry.aplicativo} options={masters.aplicaciones} onChange={(v) => patch({ aplicativo: v })} />
-        <SelectField label="Sociedad" value={entry.sociedad} options={masters.sociedades} onChange={(v) => patch({ sociedad: v })} />
+        <MultiSelectField label="Sociedad" value={entry.sociedad} options={masters.sociedades} onChange={(v) => patch({ sociedad: v })} />
       </div>
       <div className="grid grid-2">
         <SelectField label="Tipo de atencion" value={entry.tipo_atencion} options={masters.tiposAtencion} onChange={(v) => patch({ tipo_atencion: v })} />
         <label>
           Horas invertidas
-          <input type="number" step="0.5" value={entry.horas_invertidas} onChange={(e) => patch({ horas_invertidas: Number(e.target.value) })} />
+          <input type="number" min="0.5" max="8" step="0.5" value={entry.horas_invertidas} onChange={(e) => patch({ horas_invertidas: Number(e.target.value) })} />
         </label>
       </div>
       <div className="grid grid-3">
@@ -444,6 +504,7 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
         Descripcion
         <textarea value={entry.descripcion} onChange={(e) => patch({ descripcion: e.target.value })} />
       </label>
+      {saveMessage && <div className="notice">{saveMessage}</div>}
       <button><Save size={16} /> Guardar registro</button>
     </form>
   );
@@ -451,12 +512,14 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
 
 function Bulk({ profile, masters, onSaved }: { profile: Profile; masters: MasterData; onSaved: () => void }) {
   const [text, setText] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
   const parsed = useMemo(() => (text.trim() ? parseBulkText(text, masters) : { records: [], errors: [] }), [text, masters]);
   const blocked = profile.role === "trabajador" && parsed.records.some((record) => record.recurso !== profile.resource_name);
 
   async function save() {
     if (blocked || parsed.errors.length || !parsed.records.length) return;
     await saveEntries(parsed.records);
+    setSaveMessage(`Carga masiva guardada con exito. Registros: ${parsed.records.length}.`);
     setText("");
     onSaved();
   }
@@ -466,11 +529,16 @@ function Bulk({ profile, masters, onSaved }: { profile: Profile; masters: Master
       <div className="section-head">
         <div>
           <h2>Carga masiva</h2>
-          <p className="muted">Pega filas copiadas desde Excel. La app validara contra las tablas maestras.</p>
+          <p className="muted">Descarga la plantilla para copiar/pegar las filas (incluyendo los titulos). El sistema validara el registro y mostrara los registros validos o con errores.</p>
         </div>
-        <button className="secondary" type="button" onClick={() => downloadBulkTemplate(masters, profile)}>
-          <Download size={16} /> Descargar plantilla Excel
-        </button>
+        <div className="toolbar">
+          <button className="secondary" type="button" onClick={() => downloadBulkTemplate(masters, profile)}>
+            <Download size={16} /> Descargar plantilla Excel
+          </button>
+          <button className="secondary" type="button" onClick={() => { setText(""); setSaveMessage(""); }}>
+            <X size={16} /> Limpiar campo
+          </button>
+        </div>
       </div>
       <label>
         Pega aqui los datos copiados desde Excel
@@ -478,6 +546,7 @@ function Bulk({ profile, masters, onSaved }: { profile: Profile; masters: Master
       </label>
       {parsed.errors.length > 0 && <div className="notice">{parsed.errors.slice(0, 10).map((error) => <p key={error}>{error}</p>)}</div>}
       {blocked && <div className="notice">La carga contiene registros de otro recurso.</div>}
+      {saveMessage && <div className="notice">{saveMessage}</div>}
       <div className="toolbar">
         <span className="pill">Registros validos: {parsed.records.length}</span>
         <span className="pill muted-pill">Errores: {parsed.errors.length}</span>
@@ -561,6 +630,10 @@ function Entries({ profile, masters, entries, onChanged }: { profile: Profile; m
       setEditMessage("Completa TCK, sociedad y horas antes de guardar.");
       return;
     }
+    if (editingEntry.horas_invertidas <= 0 || editingEntry.horas_invertidas > 8) {
+      setEditMessage("Horas invertidas debe ser mayor a 0 y maximo 8.");
+      return;
+    }
     await saveEntry({
       ...editingEntry,
       codigo_tck: editingEntry.codigo_tck.toUpperCase(),
@@ -636,13 +709,13 @@ function Entries({ profile, masters, entries, onChanged }: { profile: Profile; m
           <div className="grid grid-3">
             <SelectField label="Recurso" value={editingEntry.recurso} options={masters.recursos} disabled={profile.role === "trabajador"} onChange={(v) => patchEditing({ recurso: v })} />
             <SelectField label="Aplicativo" value={editingEntry.aplicativo} options={masters.aplicaciones} onChange={(v) => patchEditing({ aplicativo: v })} />
-            <SelectField label="Sociedad" value={editingEntry.sociedad} options={masters.sociedades} onChange={(v) => patchEditing({ sociedad: v })} />
+            <MultiSelectField label="Sociedad" value={editingEntry.sociedad} options={masters.sociedades} onChange={(v) => patchEditing({ sociedad: v })} />
           </div>
           <div className="grid grid-2">
             <SelectField label="Tipo de atencion" value={editingEntry.tipo_atencion} options={masters.tiposAtencion} onChange={(v) => patchEditing({ tipo_atencion: v })} />
             <label>
               Horas invertidas
-              <input type="number" step="0.5" value={editingEntry.horas_invertidas} onChange={(e) => patchEditing({ horas_invertidas: Number(e.target.value) })} />
+              <input type="number" min="0.5" max="8" step="0.5" value={editingEntry.horas_invertidas} onChange={(e) => patchEditing({ horas_invertidas: Number(e.target.value) })} />
             </label>
           </div>
           <div className="grid grid-3">
@@ -721,7 +794,7 @@ function Admin({
   const [localMasters, setLocalMasters] = useState(masters);
   const [localProfiles, setLocalProfiles] = useState(profiles);
   const [adminSection, setAdminSection] = useState<"maestras" | "usuarios">("maestras");
-  const [masterKey, setMasterKey] = useState<keyof MasterData>("recursos");
+  const [masterKey, setMasterKey] = useState<MasterListKey>("recursos");
   const [newValue, setNewValue] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
   const [newUser, setNewUser] = useState<Profile>({
@@ -734,7 +807,12 @@ function Admin({
   });
 
   useEffect(() => {
-    setLocalMasters(masters);
+    setLocalMasters({
+      ...masters,
+      aplicacionesDetalle: masters.aplicacionesDetalle?.length
+        ? masters.aplicacionesDetalle
+        : masters.aplicaciones.map((name) => ({ name, company: "", service: "", fecha_creacion: "" }))
+    });
   }, [masters]);
 
   useEffect(() => {
@@ -743,7 +821,16 @@ function Admin({
 
   async function addMaster() {
     if (!newValue.trim()) return;
-    const updated = { ...localMasters, [masterKey]: [...localMasters[masterKey], newValue.trim()].sort() };
+    const updated = masterKey === "aplicaciones"
+      ? {
+          ...localMasters,
+          aplicaciones: [...localMasters.aplicaciones, newValue.trim()].sort(),
+          aplicacionesDetalle: [
+            ...localMasters.aplicacionesDetalle,
+            { name: newValue.trim(), company: "", service: "", fecha_creacion: "" }
+          ].sort((a, b) => a.name.localeCompare(b.name))
+        }
+      : { ...localMasters, [masterKey]: [...localMasters[masterKey], newValue.trim()].sort() };
     await saveMasterList(updated, "Valor agregado.");
     setNewValue("");
   }
@@ -761,8 +848,32 @@ function Admin({
 
   async function deleteMasterValue(index: number) {
     const updatedValues = localMasters[masterKey].filter((_, itemIndex) => itemIndex !== index);
-    const updated = { ...localMasters, [masterKey]: updatedValues };
+    const updated = masterKey === "aplicaciones"
+      ? {
+          ...localMasters,
+          aplicaciones: updatedValues,
+          aplicacionesDetalle: localMasters.aplicacionesDetalle.filter((_, itemIndex) => itemIndex !== index)
+        }
+      : { ...localMasters, [masterKey]: updatedValues };
     await saveMasterList(updated, "Valor eliminado.");
+  }
+
+  function updateMasterValue(index: number, value: string) {
+    const next = [...localMasters[masterKey]];
+    next[index] = value;
+    if (masterKey === "aplicaciones") {
+      const nextDetails = [...localMasters.aplicacionesDetalle];
+      nextDetails[index] = { ...(nextDetails[index] ?? { company: "", service: "", fecha_creacion: "" }), name: value };
+      setLocalMasters({ ...localMasters, aplicaciones: next, aplicacionesDetalle: nextDetails });
+      return;
+    }
+    setLocalMasters({ ...localMasters, [masterKey]: next });
+  }
+
+  function updateApplicationDetail(index: number, values: Partial<MasterData["aplicacionesDetalle"][number]>) {
+    const next = [...localMasters.aplicacionesDetalle];
+    next[index] = { ...next[index], ...values };
+    setLocalMasters({ ...localMasters, aplicacionesDetalle: next });
   }
 
   function resetNewUser() {
@@ -824,9 +935,9 @@ function Admin({
                 ["sociedades", "Sociedades"],
                 ["tiposAtencion", "Tipos de atencion"]
               ].map(([key, label]) => (
-                <button key={key} className={masterKey === key ? "active" : ""} onClick={() => { setAdminMessage(""); setNewValue(""); setMasterKey(key as keyof MasterData); }}>
+                <button key={key} className={masterKey === key ? "active" : ""} onClick={() => { setAdminMessage(""); setNewValue(""); setMasterKey(key as MasterListKey); }}>
                   <span>{label}</span>
-                  <small>{localMasters[key as keyof MasterData].length}</small>
+                  <small>{localMasters[key as MasterListKey].length}</small>
                 </button>
               ))}
             </div>
@@ -841,23 +952,42 @@ function Admin({
               <button onClick={addMaster}><Plus size={16} /> Agregar</button>
             </div>
             {adminMessage && <pre className="notice">{adminMessage}</pre>}
-            <div className="master-values">
-              {localMasters[masterKey].map((value, index) => (
-                <div className="master-row" key={`${value}-${index}`}>
-                  <input
-                    value={value}
-                    onChange={(e) => {
-                      const next = [...localMasters[masterKey]];
-                      next[index] = e.target.value;
-                      setLocalMasters({ ...localMasters, [masterKey]: next });
-                    }}
-                  />
-                  <button className="secondary icon-button" title="Eliminar valor" onClick={() => deleteMasterValue(index)}>
-                    <Trash2 size={16} />
-                  </button>
+            {masterKey === "aplicaciones" ? (
+              <div className="master-values app-master-values">
+                <div className="app-master-header">
+                  <span>Aplicativo</span>
+                  <span>Sociedad/empresa</span>
+                  <span>Servicio</span>
+                  <span>Fecha creacion</span>
+                  <span></span>
                 </div>
-              ))}
-            </div>
+                {localMasters.aplicaciones.map((value, index) => {
+                  const detail = localMasters.aplicacionesDetalle[index] ?? { name: value, company: "", service: "", fecha_creacion: "" };
+                  return (
+                    <div className="app-master-row" key={`${value}-${index}`}>
+                      <input value={value} onChange={(e) => updateMasterValue(index, e.target.value)} />
+                      <input value={detail.company} onChange={(e) => updateApplicationDetail(index, { company: e.target.value })} />
+                      <input value={detail.service} onChange={(e) => updateApplicationDetail(index, { service: e.target.value })} />
+                      <input type="date" value={detail.fecha_creacion ?? ""} onChange={(e) => updateApplicationDetail(index, { fecha_creacion: e.target.value })} />
+                      <button className="secondary icon-button" title="Eliminar valor" onClick={() => deleteMasterValue(index)}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="master-values">
+                {localMasters[masterKey].map((value, index) => (
+                  <div className="master-row" key={`${value}-${index}`}>
+                    <input value={value} onChange={(e) => updateMasterValue(index, e.target.value)} />
+                    <button className="secondary icon-button" title="Eliminar valor" onClick={() => deleteMasterValue(index)}>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <button onClick={() => saveMasterList()}>Guardar maestras</button>
           </div>
         </div>
@@ -937,7 +1067,7 @@ function Admin({
   );
 }
 
-function masterLabel(key: keyof MasterData) {
+function masterLabel(key: MasterListKey) {
   return {
     recursos: "Recursos",
     usuariosReporta: "Usuarios que reportan",

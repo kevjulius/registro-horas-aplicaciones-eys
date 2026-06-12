@@ -32,6 +32,7 @@ create table public.applications (
   name text not null unique,
   company text,
   service text,
+  fecha_creacion date,
   active boolean not null default true
 );
 
@@ -55,7 +56,7 @@ create table public.time_entries (
   descripcion text,
   sociedad text not null,
   tipo_atencion text not null,
-  horas_invertidas numeric not null check (horas_invertidas > 0),
+  horas_invertidas numeric not null check (horas_invertidas > 0 and horas_invertidas <= 8),
   estado_tck text not null check (estado_tck in ('En Proceso', 'Cerrado', 'Pendiente')),
   en_servicio text not null check (en_servicio in ('Si', 'No')),
   aplicativo_se_encuentra text not null check (aplicativo_se_encuentra in ('Si', 'No')),

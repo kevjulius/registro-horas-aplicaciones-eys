@@ -70,6 +70,7 @@ export function parseBulkText(text: string, masters: MasterData) {
     if (!tipo) rowErrors.push(`tipo_atencion no existe: ${row.tipo_atencion}`);
     if (!sociedades.length || sociedadesValidas.some((item) => !item)) rowErrors.push(`sociedad invalida: ${row.sociedad}`);
     if (!horas || horas <= 0) rowErrors.push("horas_invertidas debe ser mayor a cero");
+    if (horas > 8) rowErrors.push("horas_invertidas no puede ser mayor a 8");
     if (!["En Proceso", "Cerrado", "Pendiente"].includes(row.estado_tck)) rowErrors.push(`estado_tck invalido: ${row.estado_tck}`);
     if (!["Si", "No"].includes(row.en_servicio)) rowErrors.push(`en_servicio invalido: ${row.en_servicio}`);
     if (!["Si", "No"].includes(row.aplicativo_se_encuentra)) rowErrors.push(`aplicativo_se_encuentra invalido: ${row.aplicativo_se_encuentra}`);

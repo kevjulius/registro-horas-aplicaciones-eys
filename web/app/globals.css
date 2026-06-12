@@ -425,6 +425,51 @@ section.grid > button:not(.icon-button) {
   align-items: center;
 }
 
+.multi-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 122px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--field);
+  padding: 8px;
+}
+
+.multi-select button {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  padding: 7px 10px;
+}
+
+.multi-select button.active {
+  background: var(--primary);
+  color: var(--bg);
+  border-color: var(--primary);
+}
+
+.app-master-values {
+  min-width: 980px;
+}
+
+.app-master-header,
+.app-master-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 1fr) minmax(220px, 1.2fr) 160px 38px;
+  gap: 8px;
+  align-items: center;
+}
+
+.app-master-header {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  padding: 0 4px;
+}
+
 @media (max-width: 900px) {
   .app {
     grid-template-columns: 1fr;

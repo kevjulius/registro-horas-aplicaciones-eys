@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { MasterData, Profile } from "@/lib/types";
 
-const masterTables: Record<keyof MasterData, string> = {
+type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle">;
+
+const masterTables: Record<MasterListKey, string> = {
   recursos: "resources",
   usuariosReporta: "reporter_users",
   sociedades: "companies",
@@ -53,7 +55,7 @@ async function readMasters(supabase: ReturnType<typeof adminClient>): Promise<Ma
     supabase.from("resources").select("name").eq("active", true).order("name"),
     supabase.from("reporter_users").select("name").eq("active", true).order("name"),
     supabase.from("companies").select("name").eq("active", true).order("name"),
-    supabase.from("applications").select("name").eq("active", true).order("name"),
+    supabase.from("applications").select("*").eq("active", true).order("name"),
     supabase.from("attention_types").select("name").eq("active", true).order("name")
   ]);
 
@@ -62,6 +64,12 @@ async function readMasters(supabase: ReturnType<typeof adminClient>): Promise<Ma
     usuariosReporta: (reporters.data ?? []).map((item) => item.name),
     sociedades: (companies.data ?? []).map((item) => item.name),
     aplicaciones: (apps.data ?? []).map((item) => item.name),
+    aplicacionesDetalle: (apps.data ?? []).map((item) => ({
+      name: item.name,
+      company: item.company ?? "",
+      service: item.service ?? "",
+      fecha_creacion: item.fecha_creacion ?? ""
+    })),
     tiposAtencion: (attention.data ?? []).map((item) => item.name)
   };
 }
@@ -73,15 +81,27 @@ export async function PUT(request: Request) {
 
     const { masters } = (await request.json()) as { masters: MasterData };
 
-    for (const key of Object.keys(masterTables) as Array<keyof MasterData>) {
+    for (const key of Object.keys(masterTables) as MasterListKey[]) {
       const table = masterTables[key];
       const values = uniqueClean(masters[key] ?? []);
       const valueSet = new Set(values);
 
       if (values.length) {
+        const rows = key === "aplicaciones"
+          ? values.map((name) => {
+              const detail = masters.aplicacionesDetalle?.find((item) => item.name.trim() === name);
+              return {
+                name,
+                company: detail?.company?.trim() ?? "",
+                service: detail?.service?.trim() ?? "",
+                ...(detail?.fecha_creacion ? { fecha_creacion: detail.fecha_creacion } : {}),
+                active: true
+              };
+            })
+          : values.map((name) => ({ name, active: true }));
         const { error } = await supabase
           .from(table)
-          .upsert(values.map((name) => ({ name, active: true })), { onConflict: "name" });
+          .upsert(rows, { onConflict: "name" });
         if (error) throw error;
       }
 

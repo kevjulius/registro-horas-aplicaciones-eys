@@ -81,7 +81,7 @@ export async function loadMasters(): Promise<MasterData> {
       supabase.from("resources").select("name").eq("active", true).order("name"),
       supabase.from("reporter_users").select("name").eq("active", true).order("name"),
       supabase.from("companies").select("name").eq("active", true).order("name"),
-      supabase.from("applications").select("name").eq("active", true).order("name"),
+      supabase.from("applications").select("*").eq("active", true).order("name"),
       supabase.from("attention_types").select("name").eq("active", true).order("name")
     ]);
     return {
@@ -89,6 +89,12 @@ export async function loadMasters(): Promise<MasterData> {
       usuariosReporta: (reporters.data ?? []).map((item) => item.name),
       sociedades: (companies.data ?? []).map((item) => item.name),
       aplicaciones: (apps.data ?? []).map((item) => item.name),
+      aplicacionesDetalle: (apps.data ?? []).map((item) => ({
+        name: item.name,
+        company: item.company ?? "",
+        service: item.service ?? "",
+        fecha_creacion: item.fecha_creacion ?? ""
+      })),
       tiposAtencion: (attention.data ?? []).map((item) => item.name)
     };
   }

@@ -23,6 +23,12 @@ export const demoMasterData: MasterData = {
   recursos: ["Kevin Medina", "Evelyne Vera", "Darick Figueroa Mego", "Gianfranco Medina"],
   usuariosReporta: ["Magalli Vera", "Evelyne Vera", "Kevin Medina"],
   aplicaciones: ["ADT - Reflexis", "BOT - CUL", "RPA - Massimo", "RPA - Aperturas"],
+  aplicacionesDetalle: [
+    { name: "ADT - Reflexis", company: "Food Retail, MAKRO", service: "Soporte Aplicaciones Operacion", fecha_creacion: "" },
+    { name: "BOT - CUL", company: "Administracion Food Regional", service: "Soporte Aplicaciones Operacion", fecha_creacion: "" },
+    { name: "RPA - Massimo", company: "Hard discount", service: "Soporte RPA - Automatizacion de Procesos", fecha_creacion: "" },
+    { name: "RPA - Aperturas", company: "Administracion Food Regional", service: "Soporte RPA - Automatizacion de Procesos", fecha_creacion: "" }
+  ],
   sociedades: ["A124 - MAKRO", "A125 - Food retail", "A126 - Hard discount"],
   tiposAtencion: [
     "Actividades Internas - Atenciones Urgentes",
