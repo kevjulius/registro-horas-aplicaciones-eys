@@ -22,10 +22,10 @@ import type { MasterData, Profile, TimeEntry } from "@/lib/types";
 const estados = ["En Proceso", "Cerrado", "Pendiente"] as const;
 const siNo = ["No", "Si"] as const;
 const menuItems = [
-  { key: "registrar", label: "Registrar Atencion" },
-  { key: "carga", label: "Carga Masiva - Atencion" },
+  { key: "registrar", label: "Registrar Atención" },
+  { key: "carga", label: "Carga Masiva - Atención" },
   { key: "listado", label: "Listado de Atenciones" },
-  { key: "admin", label: "Administracion" }
+  { key: "admin", label: "Administración" }
 ] as const;
 
 type PageKey = (typeof menuItems)[number]["key"];
@@ -160,6 +160,16 @@ function exportEntriesCsv(entries: TimeEntry[]) {
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+const hourValidationMessage = "El valor debe ser mayor a 0 y menor a 8.";
+
+function showHourValidation(event: React.InvalidEvent<HTMLInputElement>) {
+  event.currentTarget.setCustomValidity(hourValidationMessage);
+}
+
+function clearHourValidation(event: React.FormEvent<HTMLInputElement>) {
+  event.currentTarget.setCustomValidity("");
 }
 
 function emptyEntry(profile: Profile | null): TimeEntry {
@@ -409,7 +419,7 @@ export default function Home() {
             setProfile(null);
           }}
         >
-          <LogOut size={16} /> Cerrar sesion
+          <LogOut size={16} /> Cerrar sesión
         </button>
         <nav className="menu">
           {menuItems.map((item) => (
@@ -450,7 +460,7 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
       return;
     }
     if (entry.horas_invertidas <= 0 || entry.horas_invertidas > 8) {
-      setSaveMessage("Horas invertidas debe ser mayor a 0 y maximo 8.");
+      setSaveMessage(hourValidationMessage);
       return;
     }
     await saveEntry({ ...entry, codigo_tck: entry.codigo_tck.toUpperCase(), modificado: new Date().toISOString() });
@@ -491,8 +501,17 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
         <div className="grid grid-2">
           <SelectField label="Tipo de atencion" value={entry.tipo_atencion} options={masters.tiposAtencion} onChange={(v) => patch({ tipo_atencion: v })} />
           <label>
-            Horas invertidas
-            <input type="number" min="0.5" max="8" step="0.5" value={entry.horas_invertidas} onChange={(e) => patch({ horas_invertidas: Number(e.target.value) })} />
+          Horas invertidas
+            <input
+              type="number"
+              min="0.5"
+              max="8"
+              step="0.5"
+              value={entry.horas_invertidas}
+              onInvalid={showHourValidation}
+              onInput={clearHourValidation}
+              onChange={(e) => patch({ horas_invertidas: Number(e.target.value) })}
+            />
           </label>
         </div>
       </div>
@@ -510,7 +529,7 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
           <SelectField label="Estado TCK" value={entry.estado_tck} options={estados} onChange={(v) => patch({ estado_tck: v as TimeEntry["estado_tck"] })} />
         </div>
         <div className="grid grid-2">
-          <SelectField label="Es un servicio de la empresa" value={entry.en_servicio} options={siNo} onChange={(v) => patch({ en_servicio: v as "Si" | "No" })} />
+          <SelectField label="¿Es un servicio de integración?" value={entry.en_servicio} options={siNo} onChange={(v) => patch({ en_servicio: v as "Si" | "No" })} />
           <SelectField label="Aplicativo se encuentra operativo" value={entry.aplicativo_se_encuentra} options={siNo} onChange={(v) => patch({ aplicativo_se_encuentra: v as "Si" | "No" })} />
         </div>
       </div>
@@ -648,7 +667,7 @@ function Entries({ profile, masters, entries, onChanged }: { profile: Profile; m
       return;
     }
     if (editingEntry.horas_invertidas <= 0 || editingEntry.horas_invertidas > 8) {
-      setEditMessage("Horas invertidas debe ser mayor a 0 y maximo 8.");
+      setEditMessage(hourValidationMessage);
       return;
     }
     await saveEntry({
@@ -732,7 +751,16 @@ function Entries({ profile, masters, entries, onChanged }: { profile: Profile; m
             <SelectField label="Tipo de atencion" value={editingEntry.tipo_atencion} options={masters.tiposAtencion} onChange={(v) => patchEditing({ tipo_atencion: v })} />
             <label>
               Horas invertidas
-              <input type="number" min="0.5" max="8" step="0.5" value={editingEntry.horas_invertidas} onChange={(e) => patchEditing({ horas_invertidas: Number(e.target.value) })} />
+              <input
+                type="number"
+                min="0.5"
+                max="8"
+                step="0.5"
+                value={editingEntry.horas_invertidas}
+                onInvalid={showHourValidation}
+                onInput={clearHourValidation}
+                onChange={(e) => patchEditing({ horas_invertidas: Number(e.target.value) })}
+              />
             </label>
           </div>
           <div className="grid grid-3">
