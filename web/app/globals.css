@@ -547,24 +547,20 @@ section.grid > button:not(.icon-button) {
   max-height: 170px;
 }
 
-.dashboard-card {
-  overflow-x: auto;
-}
-
 .dashboard-chart {
   --expected-top: 50%;
   position: relative;
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(120px, 1fr);
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: 12px;
   align-items: end;
-  min-height: 380px;
-  min-width: 720px;
+  min-height: 330px;
+  width: 100%;
   border: 1px solid rgba(180, 221, 237, 0.18);
   border-radius: 8px;
   background: rgba(234, 247, 250, 0.03);
-  padding: 46px 22px 18px;
+  padding: 44px 18px 16px;
+  overflow: hidden;
 }
 
 .expected-line {
@@ -591,7 +587,7 @@ section.grid > button:not(.icon-button) {
 
 .dashboard-bar-item {
   display: grid;
-  grid-template-rows: 28px 260px auto;
+  grid-template-rows: 26px 220px auto;
   gap: 8px;
   align-items: end;
   justify-items: center;
@@ -605,8 +601,8 @@ section.grid > button:not(.icon-button) {
 
 .dashboard-bar-track {
   position: relative;
-  width: min(58px, 80%);
-  height: 260px;
+  width: min(46px, 76%);
+  height: 220px;
   display: flex;
   align-items: flex-end;
   border-bottom: 2px solid rgba(234, 247, 250, 0.42);
@@ -618,27 +614,19 @@ section.grid > button:not(.icon-button) {
   height: var(--bar-height);
   min-height: 2px;
   border-radius: 5px 5px 0 0;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(180, 221, 237, 0.95) 0 3px,
-    rgba(76, 126, 179, 0.95) 3px 6px
-  );
+  background: #95c8df;
   box-shadow: 0 0 0 1px rgba(180, 221, 237, 0.2);
 }
 
 .dashboard-bar.ok {
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(159, 225, 184, 0.95) 0 3px,
-    rgba(73, 154, 105, 0.95) 3px 6px
-  );
+  background: #83d2a2;
 }
 
 .bar-label {
-  max-width: 130px;
-  min-height: 34px;
+  max-width: 96px;
+  min-height: 40px;
   color: var(--text);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.25;
   text-align: center;
   overflow-wrap: anywhere;
