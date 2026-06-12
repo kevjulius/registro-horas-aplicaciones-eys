@@ -159,12 +159,19 @@ function mapTicket(row: Record<string, unknown>): Ticket {
 
 export async function loadTickets(profile: Profile): Promise<Ticket[]> {
   if (hasSupabaseConfig && supabase) {
-    const { data } = await supabase
-      .from("tickets")
-      .select("*, ticket_responsables(resource_name)")
-      .eq("active", true)
-      .order("codigo_tck");
-    const tickets = ((data ?? []) as Array<Record<string, unknown>>).map(mapTicket);
+    const rows: Array<Record<string, unknown>> = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data } = await supabase
+        .from("tickets")
+        .select("*, ticket_responsables(resource_name)")
+        .eq("active", true)
+        .order("codigo_tck")
+        .range(from, from + pageSize - 1);
+      rows.push(...((data ?? []) as Array<Record<string, unknown>>));
+      if (!data || data.length < pageSize) break;
+    }
+    const tickets = rows.map(mapTicket);
     if (profile.role === "administracion") return tickets;
     return tickets.filter((ticket) => ticket.responsables.includes(profile.resource_name ?? ""));
   }

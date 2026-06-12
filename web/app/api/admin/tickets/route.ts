@@ -171,31 +171,26 @@ export async function POST(request: Request) {
         alcance_correo: ticket.alcance_correo.trim(),
         responsables: cleanList(ticket.responsables ?? []),
         active: ticket.active !== false
-      }))
-      .filter((ticket) => ticket.active);
+      }));
 
-    cleanTickets.forEach(validateTicket);
+    cleanTickets.filter((ticket) => ticket.active).forEach(validateTicket);
 
     const usedCodes = new Set(cleanTickets.map((ticket) => ticket.codigo_tck).filter(Boolean));
-    const activeIds = new Set(cleanTickets.filter((ticket) => !ticket.id.startsWith("new-")).map((ticket) => ticket.id));
 
     for (const ticket of cleanTickets) {
-      if (!ticket.codigo_tck || ticket.id.startsWith("new-")) {
+      if (ticket.active && (!ticket.codigo_tck || ticket.id.startsWith("new-"))) {
         ticket.codigo_tck = await nextCode(supabase, ticket.tipo_atencion, usedCodes);
       }
     }
 
-    const { data: existing, error: existingError } = await supabase.from("tickets").select("id");
-    if (existingError) throw existingError;
-
-    for (const ticket of existing ?? []) {
-      if (!activeIds.has(ticket.id)) {
+    for (const ticket of cleanTickets) {
+      if (!ticket.active && !ticket.id.startsWith("new-")) {
         const { error } = await supabase.from("tickets").update({ active: false, updated_at: new Date().toISOString() }).eq("id", ticket.id);
         if (error) throw error;
+        continue;
       }
-    }
+      if (!ticket.active) continue;
 
-    for (const ticket of cleanTickets) {
       const row = {
         codigo_tck: ticket.codigo_tck,
         fecha_solicitud: ticket.fecha_solicitud,

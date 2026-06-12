@@ -714,79 +714,204 @@ function Bulk({ profile, masters, tickets, onSaved }: { profile: Profile; master
 }
 
 function Tickets({ profile, masters, tickets, onChanged }: { profile: Profile; masters: MasterData; tickets: Ticket[]; onChanged: () => void }) {
-  const [localTickets, setLocalTickets] = useState(tickets);
+  const [draftTicket, setDraftTicket] = useState<Ticket>(() => emptyTicket());
+  const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
+  const [ticketView, setTicketView] = useState<"crear" | "listado">("listado");
   const [ticketMessage, setTicketMessage] = useState("");
+  const [ticketSearch, setTicketSearch] = useState("");
+  const [ticketStatusFilter, setTicketStatusFilter] = useState("Todos");
+  const [ticketTypeFilter, setTicketTypeFilter] = useState("Todos");
+  const [ticketResponsibleFilter, setTicketResponsibleFilter] = useState("Todos");
+  const [ticketDateFrom, setTicketDateFrom] = useState(today());
+  const [ticketDateTo, setTicketDateTo] = useState(today());
   const isAdmin = profile.role === "administracion";
 
-  useEffect(() => {
-    setLocalTickets(tickets);
-  }, [tickets]);
-
-  function patchTicket(index: number, values: Partial<Ticket>) {
-    setLocalTickets((current) => {
-      const next = [...current];
-      const ticket = { ...next[index], ...values };
-      if (values.responsables || values.tipo_tck) {
-        ticket.tipo_tck = ticket.responsables.length > 1 ? "Grupal" : "Personal";
+  const filteredTickets = useMemo(() => {
+    const search = ticketSearch.trim().toLowerCase();
+    return tickets.filter((ticket) => {
+      if (ticketDateFrom && ticket.fecha_recepcion < ticketDateFrom) return false;
+      if (ticketDateTo && ticket.fecha_recepcion > ticketDateTo) return false;
+      if (ticketStatusFilter !== "Todos" && ticket.estado !== ticketStatusFilter) return false;
+      if (ticketTypeFilter !== "Todos" && ticket.tipo_atencion !== ticketTypeFilter) return false;
+      if (ticketResponsibleFilter !== "Todos" && !ticket.responsables.includes(ticketResponsibleFilter)) return false;
+      if (search) {
+        const haystack = [
+          ticket.codigo_tck,
+          ticket.sistema,
+          ticket.usuario_solicitante,
+          ticket.subject_correo,
+          ticket.alcance_correo,
+          ticket.responsables.join(" ")
+        ].join(" ").toLowerCase();
+        if (!haystack.includes(search)) return false;
       }
-      next[index] = ticket;
-      return next;
+      return true;
     });
+  }, [tickets, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
+
+  function clearTicketFilters() {
+    setTicketSearch("");
+    setTicketStatusFilter("Todos");
+    setTicketTypeFilter("Todos");
+    setTicketResponsibleFilter("Todos");
+    setTicketDateFrom(today());
+    setTicketDateTo(today());
   }
 
-  function addTicket() {
-    setLocalTickets((current) => [emptyTicket(), ...current]);
-    setTicketMessage("");
+  function normalizeTicket(values: Ticket): Ticket {
+    return {
+      ...values,
+      tipo_tck: values.responsables.length > 1 ? "Grupal" : "Personal"
+    };
   }
 
-  function removeTicket(index: number) {
-    setLocalTickets((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  function patchDraft(values: Partial<Ticket>) {
+    setDraftTicket((current) => normalizeTicket({ ...current, ...values }));
   }
 
-  function toggleResponsible(index: number, resource: string) {
-    const ticket = localTickets[index];
+  function patchEditing(values: Partial<Ticket>) {
+    setEditingTicket((current) => current ? normalizeTicket({ ...current, ...values }) : current);
+  }
+
+  function toggleTicketResponsible(ticket: Ticket, resource: string, setter: (values: Partial<Ticket>) => void) {
     const responsables = ticket.responsables.includes(resource)
       ? ticket.responsables.filter((item) => item !== resource)
       : [...ticket.responsables, resource];
-    patchTicket(index, { responsables });
+    setter({ responsables });
   }
 
-  function validateTickets() {
-    for (const ticket of localTickets) {
-      const required = [
-        ticket.fecha_solicitud,
-        ticket.sistema,
-        ticket.formato,
-        ticket.usuario_solicitante,
-        ticket.fecha_recepcion,
-        ticket.subject_correo,
-        ticket.alcance_correo,
-        ticket.tipo_atencion,
-        ticket.estado,
-        ticket.fecha_termino,
-        ticket.tipo_tck
-      ];
-      if (required.some((value) => !String(value ?? "").trim())) return "Todos los campos del ticket son obligatorios.";
-      if (ticket.tipo_tck === "Personal" && ticket.responsables.length !== 1) return "Un ticket Personal debe tener exactamente un responsable.";
-      if (ticket.tipo_tck === "Grupal" && ticket.responsables.length < 2) return "Un ticket Grupal debe tener dos o mas responsables.";
-    }
+  function validateTicketForm(ticket: Ticket) {
+    const required = [
+      ticket.fecha_solicitud,
+      ticket.sistema,
+      ticket.formato,
+      ticket.usuario_solicitante,
+      ticket.fecha_recepcion,
+      ticket.subject_correo,
+      ticket.alcance_correo,
+      ticket.tipo_atencion,
+      ticket.estado,
+      ticket.fecha_termino,
+      ticket.tipo_tck
+    ];
+    if (required.some((value) => !String(value ?? "").trim())) return "Todos los campos del ticket son obligatorios.";
+    if (ticket.tipo_tck === "Personal" && ticket.responsables.length !== 1) return "Un ticket Personal debe tener exactamente un responsable.";
+    if (ticket.tipo_tck === "Grupal" && ticket.responsables.length < 2) return "Un ticket Grupal debe tener dos o mas responsables.";
     return "";
   }
 
-  async function persistTickets() {
-    const validation = validateTickets();
+  async function persistTicket(ticket: Ticket, successMessage: string) {
+    const validation = validateTicketForm(ticket);
     if (validation) {
       setTicketMessage(validation);
       return;
     }
     try {
-      const saved = await saveTickets(localTickets);
-      setLocalTickets(saved);
-      setTicketMessage("Tickets guardados.");
+      await saveTickets([ticket]);
+      setTicketMessage(successMessage);
+      setDraftTicket(emptyTicket());
+      setEditingTicket(null);
+      setTicketView("listado");
       onChanged();
     } catch (error) {
       setTicketMessage(error instanceof Error ? error.message : "No se pudo guardar tickets.");
     }
+  }
+
+  async function deleteTicket(ticket: Ticket) {
+    try {
+      await saveTickets([{ ...ticket, active: false }]);
+      setTicketMessage("Ticket eliminado.");
+      if (editingTicket?.id === ticket.id) setEditingTicket(null);
+      onChanged();
+    } catch (error) {
+      setTicketMessage(error instanceof Error ? error.message : "No se pudo eliminar ticket.");
+    }
+  }
+
+  function TicketForm({ ticket, onPatch, submitLabel, onSubmit }: { ticket: Ticket; onPatch: (values: Partial<Ticket>) => void; submitLabel: string; onSubmit: () => void }) {
+    return (
+      <div className="card grid ticket-form-card">
+        <div className="section-head compact">
+          <div>
+            <h3>{ticket.codigo_tck || "Nuevo ticket"}</h3>
+            <p className="muted">{ticket.codigo_tck ? "Edita los datos del ticket." : "El codigo se generara automaticamente al guardar."}</p>
+          </div>
+          {ticket.codigo_tck && (
+            <button className="secondary icon-button" type="button" onClick={() => setEditingTicket(null)} title="Cerrar edicion">
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <div className="grid grid-4">
+          <label>
+            Codigo TCK
+            <input value={ticket.codigo_tck || "Autogenerado"} disabled />
+          </label>
+          <label>
+            Tipo de atencion
+            <select value={ticket.tipo_atencion} onChange={(event) => onPatch({ tipo_atencion: event.target.value as Ticket["tipo_atencion"] })}>
+              {ticketAttentionTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </label>
+          <label>
+            Estado
+            <select value={ticket.estado} onChange={(event) => onPatch({ estado: event.target.value as Ticket["estado"] })}>
+              {ticketEstados.map((state) => <option key={state} value={state}>{state}</option>)}
+            </select>
+          </label>
+          <label>
+            Tipo de ticket
+            <input value={ticket.tipo_tck} disabled />
+          </label>
+        </div>
+        <div className="grid grid-4">
+          <label>
+            Fecha solicitud
+            <input type="date" value={ticket.fecha_solicitud} onChange={(event) => onPatch({ fecha_solicitud: event.target.value })} />
+          </label>
+          <label>
+            Fecha recepcion
+            <input type="date" value={ticket.fecha_recepcion} onChange={(event) => onPatch({ fecha_recepcion: event.target.value })} />
+          </label>
+          <label>
+            Fecha termino
+            <input type="date" value={ticket.fecha_termino} onChange={(event) => onPatch({ fecha_termino: event.target.value })} />
+          </label>
+          <SelectField label="Usuario solicitante" value={ticket.usuario_solicitante} options={masters.usuariosReporta} onChange={(value) => onPatch({ usuario_solicitante: value })} />
+        </div>
+        <div className="grid grid-3">
+          <SelectField label="Sistema" value={ticket.sistema} options={masters.aplicaciones} onChange={(value) => onPatch({ sistema: value })} />
+          <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} onChange={(value) => onPatch({ formato: value })} />
+          <label>
+            Responsables
+            <div className="multi-select team-select">
+              {masters.recursos.map((resource) => (
+                <button
+                  key={resource}
+                  type="button"
+                  className={ticket.responsables.includes(resource) ? "active" : ""}
+                  onClick={() => toggleTicketResponsible(ticket, resource, onPatch)}
+                >
+                  {resource}
+                </button>
+              ))}
+            </div>
+          </label>
+        </div>
+        <div className="grid grid-2">
+          <label>
+            Subject correo
+            <input value={ticket.subject_correo} onChange={(event) => onPatch({ subject_correo: event.target.value })} />
+          </label>
+          <label>
+            Alcance del correo
+            <textarea value={ticket.alcance_correo} onChange={(event) => onPatch({ alcance_correo: event.target.value })} />
+          </label>
+        </div>
+        <button type="button" onClick={onSubmit}><Save size={16} /> {submitLabel}</button>
+      </div>
+    );
   }
 
   return (
@@ -797,104 +922,112 @@ function Tickets({ profile, masters, tickets, onChanged }: { profile: Profile; m
           <p className="muted">{isAdmin ? "Gestiona tickets y responsables." : "Solo ves los tickets asignados a tu recurso."}</p>
         </div>
         <div className="toolbar">
-          <span className="pill">Tickets: {localTickets.length}</span>
-          {isAdmin && <button type="button" onClick={addTicket}><Plus size={16} /> Nuevo ticket</button>}
+          <span className="pill">Tickets: {filteredTickets.length}</span>
+          <span className="pill muted-pill">Total: {tickets.length}</span>
         </div>
+      </div>
+
+      <div className="segmented">
+        {isAdmin && <button className={ticketView === "crear" ? "active" : ""} type="button" onClick={() => { setTicketMessage(""); setTicketView("crear"); }}>Crear ticket</button>}
+        <button className={ticketView === "listado" ? "active" : ""} type="button" onClick={() => { setTicketMessage(""); setTicketView("listado"); }}>Listado de tickets</button>
       </div>
 
       {ticketMessage && <pre className="notice">{ticketMessage}</pre>}
 
-      <div className="ticket-list">
-        {localTickets.map((ticket, index) => (
-          <div className="card grid ticket-card" key={ticket.id}>
-            <div className="section-head compact">
-              <div>
-                <h3>{ticket.codigo_tck || "Nuevo ticket"}</h3>
-                <p className="muted">{ticket.tipo_atencion} - {ticket.estado}</p>
-              </div>
-              {isAdmin && (
-                <button className="secondary icon-button" type="button" title="Eliminar ticket" onClick={() => removeTicket(index)}>
-                  <Trash2 size={16} />
-                </button>
-              )}
-            </div>
+      {ticketView === "crear" && isAdmin && (
+        <TicketForm
+          ticket={draftTicket}
+          onPatch={patchDraft}
+          submitLabel="Crear ticket"
+          onSubmit={() => persistTicket(draftTicket, "Ticket creado.")}
+        />
+      )}
 
-            <div className="grid grid-4">
+      {ticketView === "listado" && (
+        <div className="grid">
+          <div className="card grid">
+            <div className="grid grid-6 filters">
               <label>
-                Codigo TCK
-                <input value={ticket.codigo_tck || "Autogenerado"} disabled />
-              </label>
-              <label>
-                Tipo de atencion
-                <select disabled={!isAdmin} value={ticket.tipo_atencion} onChange={(event) => patchTicket(index, { tipo_atencion: event.target.value as Ticket["tipo_atencion"] })}>
-                  {ticketAttentionTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-                </select>
-              </label>
-              <label>
-                Estado
-                <select disabled={!isAdmin} value={ticket.estado} onChange={(event) => patchTicket(index, { estado: event.target.value as Ticket["estado"] })}>
-                  {ticketEstados.map((state) => <option key={state} value={state}>{state}</option>)}
-                </select>
-              </label>
-              <label>
-                Tipo de ticket
-                <input value={ticket.tipo_tck} disabled />
-              </label>
-            </div>
-
-            <div className="grid grid-4">
-              <label>
-                Fecha solicitud
-                <input disabled={!isAdmin} type="date" value={ticket.fecha_solicitud} onChange={(event) => patchTicket(index, { fecha_solicitud: event.target.value })} />
-              </label>
-              <label>
-                Fecha recepcion
-                <input disabled={!isAdmin} type="date" value={ticket.fecha_recepcion} onChange={(event) => patchTicket(index, { fecha_recepcion: event.target.value })} />
-              </label>
-              <label>
-                Fecha termino
-                <input disabled={!isAdmin} type="date" value={ticket.fecha_termino} onChange={(event) => patchTicket(index, { fecha_termino: event.target.value })} />
-              </label>
-              <SelectField label="Usuario solicitante" value={ticket.usuario_solicitante} options={masters.usuariosReporta} disabled={!isAdmin} onChange={(value) => patchTicket(index, { usuario_solicitante: value })} />
-            </div>
-
-            <div className="grid grid-3">
-              <SelectField label="Sistema" value={ticket.sistema} options={masters.aplicaciones} disabled={!isAdmin} onChange={(value) => patchTicket(index, { sistema: value })} />
-              <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} disabled={!isAdmin} onChange={(value) => patchTicket(index, { formato: value })} />
-              <label>
-                Responsables
-                <div className="multi-select team-select">
-                  {masters.recursos.map((resource) => (
-                    <button
-                      key={resource}
-                      type="button"
-                      disabled={!isAdmin}
-                      className={ticket.responsables.includes(resource) ? "active" : ""}
-                      onClick={() => toggleResponsible(index, resource)}
-                    >
-                      {resource}
-                    </button>
-                  ))}
+                Buscar
+                <div className="input-with-icon">
+                  <Search size={16} />
+                  <input value={ticketSearch} onChange={(event) => setTicketSearch(event.target.value)} placeholder="Codigo, asunto, sistema..." />
                 </div>
               </label>
-            </div>
-
-            <div className="grid grid-2">
+              <SelectField label="Estado" value={ticketStatusFilter} options={["Todos", ...ticketEstados]} onChange={setTicketStatusFilter} />
+              <SelectField label="Tipo" value={ticketTypeFilter} options={["Todos", ...ticketAttentionTypes]} onChange={setTicketTypeFilter} />
+              <SelectField label="Responsable" value={ticketResponsibleFilter} options={["Todos", ...masters.recursos]} onChange={setTicketResponsibleFilter} />
               <label>
-                Subject correo
-                <input disabled={!isAdmin} value={ticket.subject_correo} onChange={(event) => patchTicket(index, { subject_correo: event.target.value })} />
+                Desde recepcion
+                <input type="date" value={ticketDateFrom} onChange={(event) => setTicketDateFrom(event.target.value)} />
               </label>
               <label>
-                Alcance del correo
-                <textarea disabled={!isAdmin} value={ticket.alcance_correo} onChange={(event) => patchTicket(index, { alcance_correo: event.target.value })} />
+                Hasta recepcion
+                <input type="date" value={ticketDateTo} onChange={(event) => setTicketDateTo(event.target.value)} />
               </label>
             </div>
+            <button className="secondary" type="button" onClick={clearTicketFilters}>Limpiar filtros</button>
           </div>
-        ))}
-        {localTickets.length === 0 && <div className="notice">No hay tickets para mostrar.</div>}
-      </div>
 
-      {isAdmin && <button type="button" onClick={persistTickets}>Guardar tickets</button>}
+          {editingTicket && isAdmin && (
+            <TicketForm
+              ticket={editingTicket}
+              onPatch={patchEditing}
+              submitLabel="Guardar ticket"
+              onSubmit={() => persistTicket(editingTicket, "Ticket actualizado.")}
+            />
+          )}
+
+          <div className="card table-card tickets-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Codigo</th>
+                  <th>Recepcion</th>
+                  <th>Termino</th>
+                  <th>Sistema</th>
+                  <th>Formato</th>
+                  <th>Solicitante</th>
+                  <th>Tipo</th>
+                  <th>Estado</th>
+                  <th>Responsables</th>
+                  <th>Subject</th>
+                  {isAdmin && <th></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTickets.map((ticket) => (
+                  <tr key={ticket.id}>
+                    <td>{ticket.codigo_tck}</td>
+                    <td>{ticket.fecha_recepcion}</td>
+                    <td>{ticket.fecha_termino}</td>
+                    <td>{ticket.sistema}</td>
+                    <td className="description-cell">{ticket.formato}</td>
+                    <td>{ticket.usuario_solicitante}</td>
+                    <td>{ticket.tipo_atencion}</td>
+                    <td><span className={`status ${ticket.estado === "Cerrado" ? "closed" : "progress"}`}>{ticket.estado}</span></td>
+                    <td className="description-cell">{ticket.responsables.join("; ")}</td>
+                    <td className="description-cell">{ticket.subject_correo}</td>
+                    {isAdmin && (
+                      <td>
+                        <div className="row-actions">
+                          <button className="secondary icon-button" type="button" title="Editar ticket" onClick={() => { setEditingTicket(ticket); setTicketMessage(""); }}>
+                            <Pencil size={16} />
+                          </button>
+                          <button className="secondary icon-button" type="button" title="Eliminar ticket" onClick={() => deleteTicket(ticket)}>
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredTickets.length === 0 && <p className="muted">No hay tickets con esos filtros.</p>}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

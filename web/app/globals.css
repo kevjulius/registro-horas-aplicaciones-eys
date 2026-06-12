@@ -175,6 +175,10 @@ th {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.grid-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .toolbar {
   display: flex;
   gap: 10px;
@@ -547,6 +551,14 @@ section.grid > button:not(.icon-button) {
   max-height: 170px;
 }
 
+.ticket-form-card {
+  gap: 16px;
+}
+
+.tickets-table table {
+  min-width: 1320px;
+}
+
 .dashboard-chart {
   --expected-top: 50%;
   position: relative;
@@ -640,7 +652,7 @@ section.grid > button:not(.icon-button) {
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
-  .grid-2, .grid-3, .grid-4, .grid-5, .admin-layout, .admin-layout:has(.app-master-values), .app-create-panel {
+  .grid-2, .grid-3, .grid-4, .grid-5, .grid-6, .admin-layout, .admin-layout:has(.app-master-values), .app-create-panel {
     grid-template-columns: 1fr;
   }
   .section-head {
