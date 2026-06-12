@@ -43,11 +43,29 @@ function xmlCell(value: string | number) {
   return `<Cell><Data ss:Type="String">${escaped}</Data></Cell>`;
 }
 
-function xmlSheet(name: string, rows: Array<Array<string | number>>, validations = "") {
+function xmlColumns(dateColumns: string[] = []) {
+  return bulkHeaders
+    .map((header) => dateColumns.includes(header) ? `<Column ss:StyleID="dateIso"/>` : "<Column/>")
+    .join("");
+}
+
+function worksheetOptions(hidden = false) {
+  return hidden
+    ? `<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><Visible>SheetHidden</Visible></WorksheetOptions>`
+    : "";
+}
+
+function xmlSheet(
+  name: string,
+  rows: Array<Array<string | number>>,
+  validations = "",
+  options: { hidden?: boolean; dateColumns?: string[] } = {}
+) {
   const safeName = name.replace(/[\\/?*[\]:]/g, " ").slice(0, 31);
-  return `<Worksheet ss:Name="${safeName}"><Table>${rows
+  const columns = options.dateColumns?.length ? xmlColumns(options.dateColumns) : "";
+  return `<Worksheet ss:Name="${safeName}"><Table>${columns}${rows
     .map((row) => `<Row>${row.map(xmlCell).join("")}</Row>`)
-    .join("")}</Table>${validations}</Worksheet>`;
+    .join("")}</Table>${validations}${worksheetOptions(Boolean(options.hidden))}</Worksheet>`;
 }
 
 function namedRange(name: string, sheet: string, count: number) {
@@ -86,6 +104,11 @@ function downloadBulkTemplate(masters: MasterData, profile: Profile) {
   xmlns:o="urn:schemas-microsoft-com:office:office"
   xmlns:x="urn:schemas-microsoft-com:office:excel"
   xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="dateIso">
+      <NumberFormat ss:Format="yyyy-mm-dd"/>
+    </Style>
+  </Styles>
   <Names>
     ${namedRange("lista_recursos", "Recursos", masters.recursos.length)}
     ${namedRange("lista_usuarios_reporta", "Usuarios reporta", masters.usuariosReporta.length)}
@@ -95,14 +118,14 @@ function downloadBulkTemplate(masters: MasterData, profile: Profile) {
     ${namedRange("lista_estados", "Estados", estados.length)}
     ${namedRange("lista_si_no", "Si No", siNo.length)}
   </Names>
-  ${xmlSheet("Plantilla", [bulkHeaders, ...blankRows], validations)}
-  ${xmlSheet("Recursos", [["recurso"], ...masters.recursos.map((item) => [item])])}
-  ${xmlSheet("Usuarios reporta", [["usuario_reporta"], ...masters.usuariosReporta.map((item) => [item])])}
-  ${xmlSheet("Aplicativos", [["aplicativo"], ...masters.aplicaciones.map((item) => [item])])}
-  ${xmlSheet("Sociedades", [["sociedad"], ...masters.sociedades.map((item) => [item])])}
-  ${xmlSheet("Tipos atencion", [["tipo_atencion"], ...masters.tiposAtencion.map((item) => [item])])}
-  ${xmlSheet("Estados", [["estado_tck"], ...estados.map((item) => [item])])}
-  ${xmlSheet("Si No", [["valor"], ...siNo.map((item) => [item])])}
+  ${xmlSheet("Plantilla", [bulkHeaders, ...blankRows], validations, { dateColumns: ["fecha_reporte", "fecha_inicio", "fecha_fin"] })}
+  ${xmlSheet("Recursos", [["recurso"], ...masters.recursos.map((item) => [item])], "", { hidden: true })}
+  ${xmlSheet("Usuarios reporta", [["usuario_reporta"], ...masters.usuariosReporta.map((item) => [item])], "", { hidden: true })}
+  ${xmlSheet("Aplicativos", [["aplicativo"], ...masters.aplicaciones.map((item) => [item])], "", { hidden: true })}
+  ${xmlSheet("Sociedades", [["sociedad"], ...masters.sociedades.map((item) => [item])], "", { hidden: true })}
+  ${xmlSheet("Tipos atencion", [["tipo_atencion"], ...masters.tiposAtencion.map((item) => [item])], "", { hidden: true })}
+  ${xmlSheet("Estados", [["estado_tck"], ...estados.map((item) => [item])], "", { hidden: true })}
+  ${xmlSheet("Si No", [["valor"], ...siNo.map((item) => [item])], "", { hidden: true })}
   ${xmlSheet("Notas", [
     ["Campo", "Nota"],
     ["sociedad", "El desplegable permite elegir una sociedad. Para varias sociedades, escribirlas separadas con | usando valores exactos de la hoja Sociedades."],
