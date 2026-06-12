@@ -375,7 +375,7 @@ section.grid > button:not(.icon-button) {
 }
 
 .admin-layout:has(.app-master-values) {
-  grid-template-columns: 260px minmax(1040px, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
 }
 
 .admin-layout > .card:first-child {
@@ -456,13 +456,14 @@ section.grid > button:not(.icon-button) {
 }
 
 .app-master-values {
-  min-width: 1120px;
+  min-width: 0;
+  width: 100%;
 }
 
 .app-master-header,
 .app-master-row {
   display: grid;
-  grid-template-columns: minmax(280px, 1.35fr) minmax(230px, 1fr) minmax(300px, 1.2fr) 170px 38px;
+  grid-template-columns: minmax(190px, 1.25fr) minmax(150px, 0.9fr) minmax(210px, 1.1fr) 140px 38px;
   gap: 8px;
   align-items: center;
 }
@@ -476,7 +477,7 @@ section.grid > button:not(.icon-button) {
 
 .app-create-panel {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(220px, 1fr) 160px auto;
+  grid-template-columns: minmax(180px, 1.15fr) minmax(150px, 0.9fr) minmax(190px, 1fr) 140px auto;
   gap: 10px;
   align-items: end;
   border: 1px solid rgba(180, 221, 237, 0.24);
@@ -487,7 +488,7 @@ section.grid > button:not(.icon-button) {
 
 .app-create-actions {
   align-self: end;
-  min-width: 230px;
+  min-width: 210px;
 }
 
 .register-card {
