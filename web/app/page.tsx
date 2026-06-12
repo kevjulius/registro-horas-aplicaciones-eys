@@ -9,15 +9,17 @@ import {
   loadEntries,
   loadMasters,
   loadProfiles,
+  loadTeams,
   saveEntries,
   saveEntry,
   saveMasters,
   saveProfiles,
+  saveTeams,
   signIn,
   signOut,
   updatePassword
 } from "@/lib/repository";
-import type { MasterData, Profile, TimeEntry } from "@/lib/types";
+import type { MasterData, Profile, Team, TimeEntry } from "@/lib/types";
 
 const estados = ["En Proceso", "Cerrado", "Pendiente"] as const;
 const siNo = ["No", "Si"] as const;
@@ -282,6 +284,7 @@ export default function Home() {
   const [masters, setMasters] = useState<MasterData | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [message, setMessage] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
 
@@ -290,6 +293,7 @@ export default function Home() {
     setMasters(nextMasters);
     if (currentProfile) setEntries(await loadEntries(currentProfile));
     setProfiles(await loadProfiles());
+    setTeams(await loadTeams());
   }
 
   useEffect(() => {
@@ -436,7 +440,7 @@ export default function Home() {
         {page === "listado" && <Entries profile={profile} masters={masters} entries={entries} onChanged={() => refresh(profile)} />}
         {page === "admin" &&
           (profile.role === "administracion" ? (
-            <Admin currentUser={profile} masters={masters} profiles={profiles} onChanged={() => refresh(profile)} />
+            <Admin currentUser={profile} masters={masters} profiles={profiles} teams={teams} onChanged={() => refresh(profile)} />
           ) : (
             <div className="notice">Solo administracion puede ingresar aqui.</div>
           ))}
@@ -829,16 +833,19 @@ function Admin({
   currentUser,
   masters,
   profiles,
+  teams,
   onChanged
 }: {
   currentUser: Profile;
   masters: MasterData;
   profiles: Profile[];
+  teams: Team[];
   onChanged: () => void;
 }) {
   const [localMasters, setLocalMasters] = useState(masters);
   const [localProfiles, setLocalProfiles] = useState(profiles);
-  const [adminSection, setAdminSection] = useState<"maestras" | "usuarios">("maestras");
+  const [localTeams, setLocalTeams] = useState(teams);
+  const [adminSection, setAdminSection] = useState<"maestras" | "usuarios" | "equipos">("maestras");
   const [masterKey, setMasterKey] = useState<MasterListKey>("recursos");
   const [newValue, setNewValue] = useState("");
   const [newApplication, setNewApplication] = useState({
@@ -869,6 +876,10 @@ function Admin({
   useEffect(() => {
     setLocalProfiles(profiles);
   }, [profiles]);
+
+  useEffect(() => {
+    setLocalTeams(teams);
+  }, [teams]);
 
   async function addMaster() {
     if (masterKey === "aplicaciones") {
@@ -975,6 +986,58 @@ function Admin({
     }
   }
 
+  function addTeam() {
+    setLocalTeams((current) => [
+      ...current,
+      {
+        id: `new-${crypto.randomUUID()}`,
+        name: "",
+        active: true,
+        resources: [],
+        profile_ids: []
+      }
+    ]);
+  }
+
+  function patchTeam(index: number, values: Partial<Team>) {
+    setLocalTeams((current) => {
+      const next = [...current];
+      next[index] = { ...next[index], ...values };
+      return next;
+    });
+  }
+
+  function toggleTeamResource(index: number, resource: string) {
+    const team = localTeams[index];
+    const resources = team.resources.includes(resource)
+      ? team.resources.filter((item) => item !== resource)
+      : [...team.resources, resource];
+    patchTeam(index, { resources });
+  }
+
+  function toggleTeamProfile(index: number, profileId: string) {
+    const team = localTeams[index];
+    const profile_ids = team.profile_ids.includes(profileId)
+      ? team.profile_ids.filter((item) => item !== profileId)
+      : [...team.profile_ids, profileId];
+    patchTeam(index, { profile_ids });
+  }
+
+  function removeTeam(index: number) {
+    setLocalTeams((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  async function persistTeams() {
+    try {
+      const saved = await saveTeams(localTeams);
+      setLocalTeams(saved);
+      setAdminMessage("Equipos guardados.");
+      onChanged();
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "No se pudo guardar equipos.");
+    }
+  }
+
   return (
     <section className="grid">
       <div className="section-head">
@@ -985,6 +1048,7 @@ function Admin({
         <div className="segmented">
           <button className={adminSection === "maestras" ? "active" : ""} onClick={() => { setAdminMessage(""); setAdminSection("maestras"); }}>Maestras</button>
           <button className={adminSection === "usuarios" ? "active" : ""} onClick={() => { setAdminMessage(""); setAdminSection("usuarios"); }}>Usuarios</button>
+          <button className={adminSection === "equipos" ? "active" : ""} onClick={() => { setAdminMessage(""); setAdminSection("equipos"); }}>Equipos</button>
         </div>
       </div>
 
@@ -1150,6 +1214,70 @@ function Admin({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {adminSection === "equipos" && (
+        <div className="grid">
+          <div className="card grid">
+            <div className="section-head compact">
+              <div>
+                <h3>Miniequipos</h3>
+                <p className="muted">Los miembros de un equipo pueden ver las atenciones de los recursos asignados a ese equipo.</p>
+              </div>
+              <button type="button" onClick={addTeam}><Plus size={16} /> Agregar equipo</button>
+            </div>
+            {adminMessage && <pre className="notice">{adminMessage}</pre>}
+            <div className="team-list">
+              {localTeams.map((team, index) => (
+                <div className="team-card" key={team.id}>
+                  <div className="section-head compact">
+                    <label>
+                      Nombre del equipo
+                      <input value={team.name} onChange={(event) => patchTeam(index, { name: event.target.value })} placeholder="BOT" />
+                    </label>
+                    <button className="secondary icon-button" type="button" title="Eliminar equipo" onClick={() => removeTeam(index)}>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div className="grid grid-2">
+                    <label>
+                      Recursos visibles
+                      <div className="multi-select team-select">
+                        {masters.recursos.map((resource) => (
+                          <button
+                            key={resource}
+                            type="button"
+                            className={team.resources.includes(resource) ? "active" : ""}
+                            onClick={() => toggleTeamResource(index, resource)}
+                          >
+                            {resource}
+                          </button>
+                        ))}
+                      </div>
+                    </label>
+                    <label>
+                      Miembros
+                      <div className="multi-select team-select">
+                        {localProfiles.map((user) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            className={team.profile_ids.includes(user.id) ? "active" : ""}
+                            onClick={() => toggleTeamProfile(index, user.id)}
+                          >
+                            {user.display_name}
+                          </button>
+                        ))}
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              ))}
+              {localTeams.length === 0 && <p className="muted">Aun no hay equipos creados.</p>}
+            </div>
+            <button type="button" onClick={persistTeams}>Guardar equipos</button>
           </div>
         </div>
       )}

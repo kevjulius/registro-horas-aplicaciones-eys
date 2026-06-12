@@ -1,12 +1,13 @@
 "use client";
 
-import { demoEntries, demoMasterData, demoProfiles } from "./demo-data";
+import { demoEntries, demoMasterData, demoProfiles, demoTeams } from "./demo-data";
 import { hasSupabaseConfig, supabase } from "./supabase";
-import type { MasterData, Profile, TimeEntry } from "./types";
+import type { MasterData, Profile, Team, TimeEntry } from "./types";
 
 const entriesKey = "eys.time_entries";
 const profilesKey = "eys.profiles";
 const mastersKey = "eys.masters";
+const teamsKey = "eys.teams";
 
 function readLocal<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -124,9 +125,7 @@ export async function saveMasters(data: MasterData): Promise<MasterData> {
 
 export async function loadEntries(profile: Profile): Promise<TimeEntry[]> {
   if (hasSupabaseConfig && supabase) {
-    let query = supabase.from("time_entries").select("*").order("fecha_reporte", { ascending: false });
-    if (profile.role !== "administracion") query = query.eq("recurso", profile.resource_name);
-    const { data } = await query;
+    const { data } = await supabase.from("time_entries").select("*").order("fecha_reporte", { ascending: false });
     return (data ?? []) as TimeEntry[];
   }
   const entries = readLocal(entriesKey, demoEntries);
@@ -206,4 +205,40 @@ export async function saveProfiles(profiles: Profile[]): Promise<SaveProfilesRes
 
   writeLocal(profilesKey, profiles);
   return { profiles, temporaryPasswords: [] };
+}
+
+export async function loadTeams(): Promise<Team[]> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/admin/teams", {
+      headers: await authHeaders()
+    });
+
+    if (!response.ok) return [];
+
+    const payload = (await response.json()) as { teams: Team[] };
+    return payload.teams;
+  }
+
+  return readLocal(teamsKey, demoTeams);
+}
+
+export async function saveTeams(teams: Team[]): Promise<Team[]> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/admin/teams", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ teams })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo guardar equipos.");
+    }
+
+    const payload = (await response.json()) as { teams: Team[] };
+    return payload.teams;
+  }
+
+  writeLocal(teamsKey, teams);
+  return teams;
 }

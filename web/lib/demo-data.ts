@@ -1,4 +1,4 @@
-import type { MasterData, Profile, TimeEntry } from "./types";
+import type { MasterData, Profile, Team, TimeEntry } from "./types";
 
 export const demoProfiles: Profile[] = [
   {
@@ -55,5 +55,15 @@ export const demoEntries: TimeEntry[] = [
     en_servicio: "No",
     aplicativo_se_encuentra: "Si",
     modificado: new Date().toISOString()
+  }
+];
+
+export const demoTeams: Team[] = [
+  {
+    id: "team-bot",
+    name: "BOT",
+    active: true,
+    resources: ["Kevin Medina", "Evelyne Vera"],
+    profile_ids: ["admin", "kevin"]
   }
 ];

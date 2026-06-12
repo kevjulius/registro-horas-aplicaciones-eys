@@ -25,6 +25,14 @@ export type ApplicationMaster = {
   fecha_creacion: string;
 };
 
+export type Team = {
+  id: string;
+  name: string;
+  active: boolean;
+  resources: string[];
+  profile_ids: string[];
+};
+
 export type TimeEntry = {
   id: string;
   fecha_reporte: string;

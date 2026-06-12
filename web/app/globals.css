@@ -524,6 +524,29 @@ section.grid > button:not(.icon-button) {
   align-items: start;
 }
 
+.team-list {
+  display: grid;
+  gap: 12px;
+}
+
+.team-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(180, 221, 237, 0.2);
+  border-radius: 8px;
+  background: rgba(16, 43, 56, 0.24);
+  padding: 14px;
+}
+
+.team-card .section-head label {
+  width: min(520px, 100%);
+}
+
+.team-select {
+  min-height: 88px;
+  max-height: 170px;
+}
+
 @media (max-width: 900px) {
   .app {
     grid-template-columns: 1fr;

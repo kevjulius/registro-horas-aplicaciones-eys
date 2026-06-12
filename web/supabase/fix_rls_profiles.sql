@@ -39,6 +39,23 @@ as $$
   select coalesce(public.current_profile_role() = 'administracion', false)
 $$;
 
+create or replace function public.current_visible_resource_names()
+returns table(resource_name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.current_resource_name()
+  where public.current_resource_name() is not null
+  union
+  select rt.resource_name
+  from public.profile_teams pt
+  join public.teams t on t.id = pt.team_id and t.active = true
+  join public.resource_teams rt on rt.team_id = pt.team_id
+  where pt.profile_id = auth.uid()
+$$;
+
 drop policy if exists "profiles read own or admin" on public.profiles;
 
 create policy "profiles read own or admin" on public.profiles
@@ -54,7 +71,7 @@ drop policy if exists "entries delete own or admin" on public.time_entries;
 
 create policy "entries read own or admin" on public.time_entries
 for select using (
-  recurso = public.current_resource_name()
+  recurso in (select resource_name from public.current_visible_resource_names())
   or public.is_admin()
 );
 
