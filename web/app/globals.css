@@ -124,7 +124,7 @@ th {
 }
 
 .main {
-  width: min(100%, 1320px);
+  width: min(100%, 1480px);
   margin: 0 auto;
   padding: 38px 36px;
   overflow-x: auto;
@@ -298,7 +298,7 @@ th {
 }
 
 .main > .grid {
-  max-width: 1220px;
+  max-width: 1280px;
 }
 
 .main > .grid:has(.table-card),
@@ -369,9 +369,13 @@ section.grid > button:not(.icon-button) {
 
 .admin-layout {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+}
+
+.admin-layout:has(.app-master-values) {
+  grid-template-columns: 260px minmax(1040px, 1fr);
 }
 
 .admin-layout > .card:first-child {
@@ -407,7 +411,7 @@ section.grid > button:not(.icon-button) {
 .master-values {
   display: grid;
   gap: 8px;
-  max-height: min(52vh, 460px);
+  max-height: min(62vh, 620px);
   overflow: auto;
   padding-right: 4px;
 }
@@ -429,7 +433,7 @@ section.grid > button:not(.icon-button) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  max-height: 122px;
+  max-height: 94px;
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -452,13 +456,13 @@ section.grid > button:not(.icon-button) {
 }
 
 .app-master-values {
-  min-width: 980px;
+  min-width: 1120px;
 }
 
 .app-master-header,
 .app-master-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 1fr) minmax(220px, 1.2fr) 160px 38px;
+  grid-template-columns: minmax(280px, 1.35fr) minmax(230px, 1fr) minmax(300px, 1.2fr) 170px 38px;
   gap: 8px;
   align-items: center;
 }
@@ -470,6 +474,55 @@ section.grid > button:not(.icon-button) {
   padding: 0 4px;
 }
 
+.app-create-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(220px, 1fr) 160px auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid rgba(180, 221, 237, 0.24);
+  border-radius: 8px;
+  background: rgba(16, 43, 56, 0.32);
+  padding: 12px;
+}
+
+.app-create-actions {
+  align-self: end;
+  min-width: 230px;
+}
+
+.register-card {
+  padding: 24px;
+  gap: 18px;
+}
+
+.register-title {
+  border-bottom: 1px solid rgba(180, 221, 237, 0.18);
+  padding-bottom: 12px;
+}
+
+.register-title h2 {
+  margin-bottom: 4px;
+}
+
+.form-band {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(180, 221, 237, 0.16);
+  border-radius: 8px;
+  background: rgba(16, 43, 56, 0.2);
+  padding: 14px;
+}
+
+.form-band h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.register-classification {
+  align-items: start;
+}
+
 @media (max-width: 900px) {
   .app {
     grid-template-columns: 1fr;
@@ -478,7 +531,7 @@ section.grid > button:not(.icon-button) {
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
-  .grid-2, .grid-3, .grid-4, .grid-5, .admin-layout {
+  .grid-2, .grid-3, .grid-4, .grid-5, .admin-layout, .admin-layout:has(.app-master-values), .app-create-panel {
     grid-template-columns: 1fr;
   }
   .section-head {

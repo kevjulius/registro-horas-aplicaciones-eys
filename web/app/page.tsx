@@ -460,9 +460,16 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
   }
 
   return (
-    <form className="card grid" onSubmit={submit}>
-      <h2>Nuevo registro</h2>
-      <div className="grid grid-3">
+    <form className="card grid register-card" onSubmit={submit}>
+      <div className="section-head compact register-title">
+        <div>
+          <h2>Nuevo registro</h2>
+          <p className="muted">Completa los datos de la atencion antes de guardar.</p>
+        </div>
+      </div>
+      <div className="form-band">
+        <h3>Datos generales</h3>
+        <div className="grid grid-3">
         <label>
           Codigo TCK
           <input value={entry.codigo_tck} onChange={(e) => patch({ codigo_tck: e.target.value })} />
@@ -472,38 +479,48 @@ function Register({ profile, masters, onSaved }: { profile: Profile; masters: Ma
           <input type="date" value={entry.fecha_reporte} onChange={(e) => patch({ fecha_reporte: e.target.value })} />
         </label>
         <SelectField label="Usuario que reporta" value={entry.usuario_reporta} options={masters.usuariosReporta} onChange={(v) => patch({ usuario_reporta: v })} />
+        </div>
       </div>
-      <div className="grid grid-3">
-        <SelectField label="Recurso" value={entry.recurso} options={masters.recursos} disabled={profile.role === "trabajador"} onChange={(v) => patch({ recurso: v })} />
-        <SelectField label="Aplicativo" value={entry.aplicativo} options={masters.aplicaciones} onChange={(v) => patch({ aplicativo: v })} />
-        <MultiSelectField label="Sociedad" value={entry.sociedad} options={masters.sociedades} onChange={(v) => patch({ sociedad: v })} />
+      <div className="form-band">
+        <h3>Clasificacion</h3>
+        <div className="grid grid-3 register-classification">
+          <SelectField label="Recurso" value={entry.recurso} options={masters.recursos} disabled={profile.role === "trabajador"} onChange={(v) => patch({ recurso: v })} />
+          <SelectField label="Aplicativo" value={entry.aplicativo} options={masters.aplicaciones} onChange={(v) => patch({ aplicativo: v })} />
+          <MultiSelectField label="Sociedad" value={entry.sociedad} options={masters.sociedades} onChange={(v) => patch({ sociedad: v })} />
+        </div>
+        <div className="grid grid-2">
+          <SelectField label="Tipo de atencion" value={entry.tipo_atencion} options={masters.tiposAtencion} onChange={(v) => patch({ tipo_atencion: v })} />
+          <label>
+            Horas invertidas
+            <input type="number" min="0.5" max="8" step="0.5" value={entry.horas_invertidas} onChange={(e) => patch({ horas_invertidas: Number(e.target.value) })} />
+          </label>
+        </div>
       </div>
-      <div className="grid grid-2">
-        <SelectField label="Tipo de atencion" value={entry.tipo_atencion} options={masters.tiposAtencion} onChange={(v) => patch({ tipo_atencion: v })} />
+      <div className="form-band">
+        <h3>Estado y fechas</h3>
+        <div className="grid grid-3">
+          <label>
+            Fecha inicio
+            <input type="date" value={entry.fecha_inicio} onChange={(e) => patch({ fecha_inicio: e.target.value })} />
+          </label>
+          <label>
+            Fecha fin
+            <input type="date" value={entry.fecha_fin} onChange={(e) => patch({ fecha_fin: e.target.value })} />
+          </label>
+          <SelectField label="Estado TCK" value={entry.estado_tck} options={estados} onChange={(v) => patch({ estado_tck: v as TimeEntry["estado_tck"] })} />
+        </div>
+        <div className="grid grid-2">
+          <SelectField label="Es un servicio de la empresa" value={entry.en_servicio} options={siNo} onChange={(v) => patch({ en_servicio: v as "Si" | "No" })} />
+          <SelectField label="Aplicativo se encuentra operativo" value={entry.aplicativo_se_encuentra} options={siNo} onChange={(v) => patch({ aplicativo_se_encuentra: v as "Si" | "No" })} />
+        </div>
+      </div>
+      <div className="form-band">
+        <h3>Detalle</h3>
         <label>
-          Horas invertidas
-          <input type="number" min="0.5" max="8" step="0.5" value={entry.horas_invertidas} onChange={(e) => patch({ horas_invertidas: Number(e.target.value) })} />
+          Descripcion
+          <textarea value={entry.descripcion} onChange={(e) => patch({ descripcion: e.target.value })} />
         </label>
       </div>
-      <div className="grid grid-3">
-        <label>
-          Fecha inicio
-          <input type="date" value={entry.fecha_inicio} onChange={(e) => patch({ fecha_inicio: e.target.value })} />
-        </label>
-        <label>
-          Fecha fin
-          <input type="date" value={entry.fecha_fin} onChange={(e) => patch({ fecha_fin: e.target.value })} />
-        </label>
-        <SelectField label="Estado TCK" value={entry.estado_tck} options={estados} onChange={(v) => patch({ estado_tck: v as TimeEntry["estado_tck"] })} />
-      </div>
-      <div className="grid grid-2">
-        <SelectField label="Es un servicio de la empresa" value={entry.en_servicio} options={siNo} onChange={(v) => patch({ en_servicio: v as "Si" | "No" })} />
-        <SelectField label="Aplicativo se encuentra operativo" value={entry.aplicativo_se_encuentra} options={siNo} onChange={(v) => patch({ aplicativo_se_encuentra: v as "Si" | "No" })} />
-      </div>
-      <label>
-        Descripcion
-        <textarea value={entry.descripcion} onChange={(e) => patch({ descripcion: e.target.value })} />
-      </label>
       {saveMessage && <div className="notice">{saveMessage}</div>}
       <button><Save size={16} /> Guardar registro</button>
     </form>
@@ -796,6 +813,12 @@ function Admin({
   const [adminSection, setAdminSection] = useState<"maestras" | "usuarios">("maestras");
   const [masterKey, setMasterKey] = useState<MasterListKey>("recursos");
   const [newValue, setNewValue] = useState("");
+  const [newApplication, setNewApplication] = useState({
+    name: "",
+    company: "",
+    service: "",
+    fecha_creacion: ""
+  });
   const [adminMessage, setAdminMessage] = useState("");
   const [newUser, setNewUser] = useState<Profile>({
     id: `new-${crypto.randomUUID()}`,
@@ -820,17 +843,27 @@ function Admin({
   }, [profiles]);
 
   async function addMaster() {
+    if (masterKey === "aplicaciones") {
+      if (!newApplication.name.trim()) return;
+      const nextDetail = {
+        name: newApplication.name.trim(),
+        company: newApplication.company.trim(),
+        service: newApplication.service.trim(),
+        fecha_creacion: newApplication.fecha_creacion
+      };
+      const nextDetails = [...localMasters.aplicacionesDetalle, nextDetail].sort((a, b) => a.name.localeCompare(b.name));
+      const updated = {
+        ...localMasters,
+        aplicaciones: nextDetails.map((item) => item.name),
+        aplicacionesDetalle: nextDetails
+      };
+      await saveMasterList(updated, "Aplicativo agregado.");
+      resetNewApplication();
+      return;
+    }
+
     if (!newValue.trim()) return;
-    const updated = masterKey === "aplicaciones"
-      ? {
-          ...localMasters,
-          aplicaciones: [...localMasters.aplicaciones, newValue.trim()].sort(),
-          aplicacionesDetalle: [
-            ...localMasters.aplicacionesDetalle,
-            { name: newValue.trim(), company: "", service: "", fecha_creacion: "" }
-          ].sort((a, b) => a.name.localeCompare(b.name))
-        }
-      : { ...localMasters, [masterKey]: [...localMasters[masterKey], newValue.trim()].sort() };
+    const updated = { ...localMasters, [masterKey]: [...localMasters[masterKey], newValue.trim()].sort() };
     await saveMasterList(updated, "Valor agregado.");
     setNewValue("");
   }
@@ -874,6 +907,10 @@ function Admin({
     const next = [...localMasters.aplicacionesDetalle];
     next[index] = { ...next[index], ...values };
     setLocalMasters({ ...localMasters, aplicacionesDetalle: next });
+  }
+
+  function resetNewApplication() {
+    setNewApplication({ name: "", company: "", service: "", fecha_creacion: "" });
   }
 
   function resetNewUser() {
@@ -935,7 +972,7 @@ function Admin({
                 ["sociedades", "Sociedades"],
                 ["tiposAtencion", "Tipos de atencion"]
               ].map(([key, label]) => (
-                <button key={key} className={masterKey === key ? "active" : ""} onClick={() => { setAdminMessage(""); setNewValue(""); setMasterKey(key as MasterListKey); }}>
+                <button key={key} className={masterKey === key ? "active" : ""} onClick={() => { setAdminMessage(""); setNewValue(""); resetNewApplication(); setMasterKey(key as MasterListKey); }}>
                   <span>{label}</span>
                   <small>{localMasters[key as MasterListKey].length}</small>
                 </button>
@@ -947,10 +984,35 @@ function Admin({
               <h3>{masterLabel(masterKey)}</h3>
               <span className="pill">{localMasters[masterKey].length} valores</span>
             </div>
-            <div className="toolbar">
-              <input value={newValue} onChange={(e) => setNewValue(e.target.value)} placeholder="Nuevo valor" />
-              <button onClick={addMaster}><Plus size={16} /> Agregar</button>
-            </div>
+            {masterKey === "aplicaciones" ? (
+              <div className="app-create-panel">
+                <label>
+                  Aplicativo
+                  <input value={newApplication.name} onChange={(e) => setNewApplication({ ...newApplication, name: e.target.value })} placeholder="Nombre del aplicativo" />
+                </label>
+                <label>
+                  Sociedad/empresa
+                  <input value={newApplication.company} onChange={(e) => setNewApplication({ ...newApplication, company: e.target.value })} placeholder="Sociedad o empresa" />
+                </label>
+                <label>
+                  Servicio
+                  <input value={newApplication.service} onChange={(e) => setNewApplication({ ...newApplication, service: e.target.value })} placeholder="Servicio asociado" />
+                </label>
+                <label>
+                  Fecha creacion
+                  <input type="date" value={newApplication.fecha_creacion} onChange={(e) => setNewApplication({ ...newApplication, fecha_creacion: e.target.value })} />
+                </label>
+                <div className="toolbar app-create-actions">
+                  <button type="button" onClick={addMaster}><Plus size={16} /> Agregar aplicativo</button>
+                  <button className="secondary" type="button" onClick={resetNewApplication}>Limpiar</button>
+                </div>
+              </div>
+            ) : (
+              <div className="toolbar">
+                <input value={newValue} onChange={(e) => setNewValue(e.target.value)} placeholder="Nuevo valor" />
+                <button type="button" onClick={addMaster}><Plus size={16} /> Agregar</button>
+              </div>
+            )}
             {adminMessage && <pre className="notice">{adminMessage}</pre>}
             {masterKey === "aplicaciones" ? (
               <div className="master-values app-master-values">
