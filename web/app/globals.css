@@ -552,7 +552,24 @@ section.grid > button:not(.icon-button) {
 }
 
 .ticket-form-card {
-  gap: 16px;
+  gap: 18px;
+  padding: 24px;
+}
+
+.ticket-form-card > .section-head {
+  border-bottom: 1px solid rgba(180, 221, 237, 0.18);
+  padding-bottom: 12px;
+}
+
+.ticket-form-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) minmax(320px, 1.25fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.ticket-form-card textarea {
+  min-height: 116px;
 }
 
 .tickets-table table {
@@ -652,7 +669,7 @@ section.grid > button:not(.icon-button) {
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
-  .grid-2, .grid-3, .grid-4, .grid-5, .grid-6, .admin-layout, .admin-layout:has(.app-master-values), .app-create-panel {
+  .grid-2, .grid-3, .grid-4, .grid-5, .grid-6, .admin-layout, .admin-layout:has(.app-master-values), .app-create-panel, .ticket-form-grid {
     grid-template-columns: 1fr;
   }
   .section-head {

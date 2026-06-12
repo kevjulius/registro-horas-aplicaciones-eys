@@ -258,8 +258,45 @@ function ticketMatchesEntry(ticket: Ticket, entry: TimeEntry, profile: Profile) 
   return true;
 }
 
-function ticketCodeOptions(tickets: Ticket[]) {
-  return tickets.map((ticket) => ticket.codigo_tck).sort((a, b) => a.localeCompare(b));
+function ticketSearchLabels(tickets: Ticket[]) {
+  return tickets
+    .map((ticket) => ({
+      value: ticket.codigo_tck,
+      label: `${ticket.codigo_tck} - ${ticket.sistema} - ${ticket.subject_correo}`
+    }))
+    .sort((a, b) => a.value.localeCompare(b.value));
+}
+
+function TicketCodeField({
+  label,
+  value,
+  tickets,
+  onChange
+}: {
+  label: string;
+  value: string;
+  tickets: Ticket[];
+  onChange: (value: string) => void;
+}) {
+  const listId = useMemo(() => `tickets-${crypto.randomUUID()}`, []);
+  const options = useMemo(() => ticketSearchLabels(tickets), [tickets]);
+
+  return (
+    <label>
+      {label}
+      <input
+        list={listId}
+        value={value}
+        onChange={(event) => onChange(event.target.value.toUpperCase())}
+        placeholder="Escribe el codigo del ticket"
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </datalist>
+    </label>
+  );
 }
 
 function SelectField({
@@ -340,6 +377,124 @@ function MultiSelectField({
         ))}
       </div>
     </label>
+  );
+}
+
+function TicketForm({
+  ticket,
+  masters,
+  onPatch,
+  onToggleResponsible,
+  submitLabel,
+  onSubmit,
+  onClose
+}: {
+  ticket: Ticket;
+  masters: MasterData;
+  onPatch: (values: Partial<Ticket>) => void;
+  onToggleResponsible: (resource: string) => void;
+  submitLabel: string;
+  onSubmit: () => void;
+  onClose?: () => void;
+}) {
+  return (
+    <div className="card grid ticket-form-card">
+      <div className="section-head compact">
+        <div>
+          <h3>{ticket.codigo_tck || "Nuevo ticket"}</h3>
+          <p className="muted">{ticket.codigo_tck ? "Edita los datos del ticket." : "El codigo se generara automaticamente al guardar."}</p>
+        </div>
+        {onClose && (
+          <button className="secondary icon-button" type="button" onClick={onClose} title="Cerrar edicion">
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      <div className="form-band">
+        <h3>Datos principales</h3>
+        <div className="grid grid-4">
+          <label>
+            Codigo TCK
+            <input value={ticket.codigo_tck || "Autogenerado"} disabled />
+          </label>
+          <label>
+            Tipo de atencion
+            <select value={ticket.tipo_atencion} onChange={(event) => onPatch({ tipo_atencion: event.target.value as Ticket["tipo_atencion"] })}>
+              {ticketAttentionTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </label>
+          <label>
+            Estado
+            <select value={ticket.estado} onChange={(event) => onPatch({ estado: event.target.value as Ticket["estado"] })}>
+              {ticketEstados.map((state) => <option key={state} value={state}>{state}</option>)}
+            </select>
+          </label>
+          <label>
+            Tipo de ticket
+            <input value={ticket.tipo_tck} disabled />
+          </label>
+        </div>
+      </div>
+
+      <div className="form-band">
+        <h3>Fechas y solicitante</h3>
+        <div className="grid grid-4">
+          <label>
+            Fecha solicitud
+            <input type="date" value={ticket.fecha_solicitud} onChange={(event) => onPatch({ fecha_solicitud: event.target.value })} />
+          </label>
+          <label>
+            Fecha recepcion
+            <input type="date" value={ticket.fecha_recepcion} onChange={(event) => onPatch({ fecha_recepcion: event.target.value })} />
+          </label>
+          <label>
+            Fecha termino
+            <input type="date" value={ticket.fecha_termino} onChange={(event) => onPatch({ fecha_termino: event.target.value })} />
+          </label>
+          <SelectField label="Usuario solicitante" value={ticket.usuario_solicitante} options={masters.usuariosReporta} onChange={(value) => onPatch({ usuario_solicitante: value })} />
+        </div>
+      </div>
+
+      <div className="form-band">
+        <h3>Clasificacion y responsables</h3>
+        <div className="ticket-form-grid">
+          <SelectField label="Sistema" value={ticket.sistema} options={masters.aplicaciones} onChange={(value) => onPatch({ sistema: value })} />
+          <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} onChange={(value) => onPatch({ formato: value })} />
+          <label>
+            Responsables
+            <div className="multi-select team-select">
+              {masters.recursos.map((resource) => (
+                <button
+                  key={resource}
+                  type="button"
+                  className={ticket.responsables.includes(resource) ? "active" : ""}
+                  onClick={() => onToggleResponsible(resource)}
+                >
+                  {resource}
+                </button>
+              ))}
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div className="form-band">
+        <h3>Detalle</h3>
+        <div className="grid grid-2">
+          <label>
+            Subject correo
+            <input value={ticket.subject_correo} onChange={(event) => onPatch({ subject_correo: event.target.value })} />
+          </label>
+          <label>
+            Alcance del correo
+            <textarea value={ticket.alcance_correo} onChange={(event) => onPatch({ alcance_correo: event.target.value })} />
+          </label>
+        </div>
+      </div>
+
+      <button type="button" onClick={onSubmit}><Save size={16} /> {submitLabel}</button>
+    </div>
   );
 }
 
@@ -569,13 +724,7 @@ function Register({ profile, masters, tickets, onSaved }: { profile: Profile; ma
       <div className="form-band">
         <h3>Datos generales</h3>
         <div className="grid grid-3">
-        <label>
-          Codigo TCK
-          <select value={entry.codigo_tck} onChange={(e) => patch({ codigo_tck: e.target.value })}>
-            <option value="">Selecciona</option>
-            {ticketCodeOptions(tickets).map((code) => <option key={code} value={code}>{code}</option>)}
-          </select>
-        </label>
+        <TicketCodeField label="Codigo TCK" value={entry.codigo_tck} tickets={tickets} onChange={(value) => patch({ codigo_tck: value })} />
         <label>
           Fecha de reporte
           <input type="date" value={entry.fecha_reporte} onChange={(e) => patch({ fecha_reporte: e.target.value })} />
@@ -829,91 +978,6 @@ function Tickets({ profile, masters, tickets, onChanged }: { profile: Profile; m
     }
   }
 
-  function TicketForm({ ticket, onPatch, submitLabel, onSubmit }: { ticket: Ticket; onPatch: (values: Partial<Ticket>) => void; submitLabel: string; onSubmit: () => void }) {
-    return (
-      <div className="card grid ticket-form-card">
-        <div className="section-head compact">
-          <div>
-            <h3>{ticket.codigo_tck || "Nuevo ticket"}</h3>
-            <p className="muted">{ticket.codigo_tck ? "Edita los datos del ticket." : "El codigo se generara automaticamente al guardar."}</p>
-          </div>
-          {ticket.codigo_tck && (
-            <button className="secondary icon-button" type="button" onClick={() => setEditingTicket(null)} title="Cerrar edicion">
-              <X size={16} />
-            </button>
-          )}
-        </div>
-        <div className="grid grid-4">
-          <label>
-            Codigo TCK
-            <input value={ticket.codigo_tck || "Autogenerado"} disabled />
-          </label>
-          <label>
-            Tipo de atencion
-            <select value={ticket.tipo_atencion} onChange={(event) => onPatch({ tipo_atencion: event.target.value as Ticket["tipo_atencion"] })}>
-              {ticketAttentionTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-            </select>
-          </label>
-          <label>
-            Estado
-            <select value={ticket.estado} onChange={(event) => onPatch({ estado: event.target.value as Ticket["estado"] })}>
-              {ticketEstados.map((state) => <option key={state} value={state}>{state}</option>)}
-            </select>
-          </label>
-          <label>
-            Tipo de ticket
-            <input value={ticket.tipo_tck} disabled />
-          </label>
-        </div>
-        <div className="grid grid-4">
-          <label>
-            Fecha solicitud
-            <input type="date" value={ticket.fecha_solicitud} onChange={(event) => onPatch({ fecha_solicitud: event.target.value })} />
-          </label>
-          <label>
-            Fecha recepcion
-            <input type="date" value={ticket.fecha_recepcion} onChange={(event) => onPatch({ fecha_recepcion: event.target.value })} />
-          </label>
-          <label>
-            Fecha termino
-            <input type="date" value={ticket.fecha_termino} onChange={(event) => onPatch({ fecha_termino: event.target.value })} />
-          </label>
-          <SelectField label="Usuario solicitante" value={ticket.usuario_solicitante} options={masters.usuariosReporta} onChange={(value) => onPatch({ usuario_solicitante: value })} />
-        </div>
-        <div className="grid grid-3">
-          <SelectField label="Sistema" value={ticket.sistema} options={masters.aplicaciones} onChange={(value) => onPatch({ sistema: value })} />
-          <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} onChange={(value) => onPatch({ formato: value })} />
-          <label>
-            Responsables
-            <div className="multi-select team-select">
-              {masters.recursos.map((resource) => (
-                <button
-                  key={resource}
-                  type="button"
-                  className={ticket.responsables.includes(resource) ? "active" : ""}
-                  onClick={() => toggleTicketResponsible(ticket, resource, onPatch)}
-                >
-                  {resource}
-                </button>
-              ))}
-            </div>
-          </label>
-        </div>
-        <div className="grid grid-2">
-          <label>
-            Subject correo
-            <input value={ticket.subject_correo} onChange={(event) => onPatch({ subject_correo: event.target.value })} />
-          </label>
-          <label>
-            Alcance del correo
-            <textarea value={ticket.alcance_correo} onChange={(event) => onPatch({ alcance_correo: event.target.value })} />
-          </label>
-        </div>
-        <button type="button" onClick={onSubmit}><Save size={16} /> {submitLabel}</button>
-      </div>
-    );
-  }
-
   return (
     <section className="grid">
       <div className="section-head">
@@ -937,7 +1001,9 @@ function Tickets({ profile, masters, tickets, onChanged }: { profile: Profile; m
       {ticketView === "crear" && isAdmin && (
         <TicketForm
           ticket={draftTicket}
+          masters={masters}
           onPatch={patchDraft}
+          onToggleResponsible={(resource) => toggleTicketResponsible(draftTicket, resource, patchDraft)}
           submitLabel="Crear ticket"
           onSubmit={() => persistTicket(draftTicket, "Ticket creado.")}
         />
@@ -972,9 +1038,12 @@ function Tickets({ profile, masters, tickets, onChanged }: { profile: Profile; m
           {editingTicket && isAdmin && (
             <TicketForm
               ticket={editingTicket}
+              masters={masters}
               onPatch={patchEditing}
+              onToggleResponsible={(resource) => toggleTicketResponsible(editingTicket, resource, patchEditing)}
               submitLabel="Guardar ticket"
               onSubmit={() => persistTicket(editingTicket, "Ticket actualizado.")}
+              onClose={() => setEditingTicket(null)}
             />
           )}
 
@@ -1259,13 +1328,7 @@ function Entries({ profile, masters, tickets, entries, onChanged }: { profile: P
           </div>
           {editMessage && <div className="notice">{editMessage}</div>}
           <div className="grid grid-3">
-            <label>
-              Codigo TCK
-              <select value={editingEntry.codigo_tck} onChange={(e) => patchEditing({ codigo_tck: e.target.value })}>
-                <option value="">Selecciona</option>
-                {ticketCodeOptions(tickets).map((code) => <option key={code} value={code}>{code}</option>)}
-              </select>
-            </label>
+            <TicketCodeField label="Codigo TCK" value={editingEntry.codigo_tck} tickets={tickets} onChange={(value) => patchEditing({ codigo_tck: value })} />
             <label>
               Fecha reporte
               <input type="date" value={editingEntry.fecha_reporte} onChange={(e) => patchEditing({ fecha_reporte: e.target.value })} />
