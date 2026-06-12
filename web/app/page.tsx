@@ -212,7 +212,7 @@ function SelectField({
 
 export default function Home() {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [email, setEmail] = useState("kevin.medina@estrategiaysoluciones.pe");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -330,7 +330,7 @@ export default function Home() {
           </div>
           <label>
             Correo
-            <input value={email} onChange={(event) => setEmail(event.target.value)} />
+            <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="correo@empresa.com" />
           </label>
           <label>
             Clave
