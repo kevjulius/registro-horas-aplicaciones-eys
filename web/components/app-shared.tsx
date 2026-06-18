@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Save, X } from "lucide-react";
+import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
 import type { MasterData, Profile, Ticket, TicketAttentionType, TimeEntry } from "@/lib/types";
 
 export const estados = ["En Proceso", "Cerrado", "Pendiente"] as const;
@@ -77,6 +78,7 @@ export function emptyTicket(): Ticket {
 export function ticketMatchesEntry(ticket: Ticket, entry: TimeEntry, profile: Profile) {
   if (ticket.codigo_tck.toUpperCase() !== entry.codigo_tck.trim().toUpperCase()) return false;
   if (ticket.approval_status !== "Aprobado") return false;
+  if (!ticketMatchesReportPeriod(ticket, entry.fecha_reporte)) return false;
   if (profile.role === "trabajador" && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
   return true;
 }

@@ -1,4 +1,5 @@
 import type { MasterData, Profile, Ticket, TimeEntry } from "./types";
+import { ticketPeriodValidationMessage, ticketMatchesReportPeriod } from "./ticket-period";
 
 export const bulkHeaders = [
   "fecha_reporte",
@@ -69,6 +70,9 @@ export function parseBulkText(text: string, masters: MasterData, tickets: Ticket
     if (!usuario) rowErrors.push(`usuario_reporta no existe: ${row.usuario_reporta}`);
     if (!ticket) rowErrors.push(`codigo_tck no existe o no esta asignado al usuario: ${row.codigo_tck}`);
     if (ticket && ticket.approval_status !== "Aprobado") rowErrors.push(`codigo_tck no esta aprobado para registrar horas: ${row.codigo_tck}`);
+    if (ticket && isIsoDate(row.fecha_reporte) && !ticketMatchesReportPeriod(ticket, row.fecha_reporte)) {
+      rowErrors.push(ticketPeriodValidationMessage(ticket, row.fecha_reporte));
+    }
     if (!recurso) rowErrors.push(`recurso no existe: ${row.recurso}`);
     if (!aplicativo) rowErrors.push(`aplicativo no existe: ${row.aplicativo}`);
     if (!tipo) rowErrors.push(`tipo_atencion no existe: ${row.tipo_atencion}`);

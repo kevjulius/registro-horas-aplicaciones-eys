@@ -15,6 +15,7 @@ import {
   today
 } from "@/components/app-shared";
 import { deleteEntry, saveEntry } from "@/lib/repository";
+import { ticketPeriodValidationMessage } from "@/lib/ticket-period";
 import type { MasterData, Profile, Ticket, TimeEntry } from "@/lib/types";
 
 const entryExportHeaders: Array<{ key: keyof TimeEntry; label: string }> = [
@@ -100,6 +101,14 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
     if (!editingEntry.codigo_tck || !editingEntry.sociedad || !editingEntry.horas_invertidas) {
       setEditMessage("Completa TCK, sociedad y horas antes de guardar.");
       return;
+    }
+    const selectedTicket = approvedTickets.find((ticket) => ticket.codigo_tck.toUpperCase() === editingEntry.codigo_tck.trim().toUpperCase());
+    if (selectedTicket) {
+      const periodMessage = ticketPeriodValidationMessage(selectedTicket, editingEntry.fecha_reporte);
+      if (periodMessage) {
+        setEditMessage(periodMessage);
+        return;
+      }
     }
     if (!approvedTickets.some((ticket) => ticketMatchesEntry(ticket, editingEntry, profile))) {
       setEditMessage("Selecciona un ticket existente, aprobado y asignado a tu usuario.");
