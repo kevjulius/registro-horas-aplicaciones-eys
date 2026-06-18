@@ -15,10 +15,34 @@ create table if not exists public.tickets (
   estado text not null check (estado in ('Cerrado', 'Pendiente', 'En Proceso', 'Cancelado')),
   fecha_termino date not null,
   tipo_tck text not null check (tipo_tck in ('Personal', 'Grupal')),
+  approval_status text not null default 'Aprobado' check (approval_status in ('Pendiente', 'Aprobado', 'Rechazado')),
+  rejection_reason text not null default '',
+  requested_by uuid references public.profiles(id) on delete set null,
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.tickets add column if not exists approval_status text not null default 'Aprobado';
+alter table public.tickets add column if not exists rejection_reason text not null default '';
+alter table public.tickets add column if not exists requested_by uuid references public.profiles(id) on delete set null;
+alter table public.tickets add column if not exists reviewed_by uuid references public.profiles(id) on delete set null;
+alter table public.tickets add column if not exists reviewed_at timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'tickets_approval_status_check'
+      and conrelid = 'public.tickets'::regclass
+  ) then
+    alter table public.tickets
+      add constraint tickets_approval_status_check
+      check (approval_status in ('Pendiente', 'Aprobado', 'Rechazado'));
+  end if;
+end $$;
 
 create table if not exists public.ticket_responsables (
   ticket_id uuid not null references public.tickets(id) on delete cascade,

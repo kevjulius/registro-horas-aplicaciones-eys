@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Save } from "lucide-react";
 import {
   clearHourValidation,
@@ -20,6 +20,7 @@ import type { MasterData, Profile, Ticket, TimeEntry } from "@/lib/types";
 export function RegisterView({ profile, masters, tickets, onSaved }: { profile: Profile; masters: MasterData; tickets: Ticket[]; onSaved: () => void }) {
   const [entry, setEntry] = useState<TimeEntry>(() => emptyEntry(profile));
   const [saveMessage, setSaveMessage] = useState("");
+  const approvedTickets = useMemo(() => tickets.filter((ticket) => ticket.approval_status === "Aprobado"), [tickets]);
 
   function patch(values: Partial<TimeEntry>) {
     setEntry((current) => ({ ...current, ...values }));
@@ -31,8 +32,8 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
       setSaveMessage("Completa TCK, sociedad y horas antes de guardar.");
       return;
     }
-    if (!tickets.some((ticket) => ticketMatchesEntry(ticket, entry, profile))) {
-      setSaveMessage("Selecciona un ticket existente asignado a tu usuario.");
+    if (!approvedTickets.some((ticket) => ticketMatchesEntry(ticket, entry, profile))) {
+      setSaveMessage("Selecciona un ticket existente, aprobado y asignado a tu usuario.");
       return;
     }
     if (entry.horas_invertidas <= 0 || entry.horas_invertidas > 8) {
@@ -56,7 +57,7 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
       <div className="form-band">
         <h3>Datos generales</h3>
         <div className="grid grid-3">
-          <TicketCodeField label="Codigo TCK" value={entry.codigo_tck} tickets={tickets} onChange={(value) => patch({ codigo_tck: value })} />
+          <TicketCodeField label="Codigo TCK" value={entry.codigo_tck} tickets={approvedTickets} onChange={(value) => patch({ codigo_tck: value })} />
           <label>
             Fecha de reporte
             <input type="date" value={entry.fecha_reporte} onChange={(e) => patch({ fecha_reporte: e.target.value })} />

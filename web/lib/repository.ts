@@ -150,6 +150,11 @@ function mapTicket(row: Record<string, unknown>): Ticket {
     estado: row.estado as Ticket["estado"],
     fecha_termino: String(row.fecha_termino ?? ""),
     tipo_tck: row.tipo_tck as Ticket["tipo_tck"],
+    approval_status: (row.approval_status as Ticket["approval_status"]) ?? "Aprobado",
+    rejection_reason: String(row.rejection_reason ?? ""),
+    requested_by: row.requested_by ? String(row.requested_by) : null,
+    reviewed_by: row.reviewed_by ? String(row.reviewed_by) : null,
+    reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
     responsables: links.map((item) => item.resource_name).sort((a, b) => a.localeCompare(b)),
     active: Boolean(row.active),
     created_at: row.created_at ? String(row.created_at) : undefined,
@@ -200,6 +205,35 @@ export async function saveTickets(tickets: Ticket[]): Promise<Ticket[]> {
 
   writeLocal(ticketsKey, tickets);
   return tickets;
+}
+
+export async function requestTicket(ticket: Ticket): Promise<Ticket[]> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/tickets/request", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ ticket })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo solicitar ticket.");
+    }
+
+    const payload = (await response.json()) as { tickets: Ticket[] };
+    return payload.tickets;
+  }
+
+  const tickets = readLocal(ticketsKey, demoTickets);
+  const requested = {
+    ...ticket,
+    codigo_tck: ticket.codigo_tck || `TMP${tickets.length + 1}`,
+    approval_status: "Pendiente" as const,
+    rejection_reason: ""
+  };
+  const next = [requested, ...tickets];
+  writeLocal(ticketsKey, next);
+  return next;
 }
 
 export async function saveEntry(entry: TimeEntry) {

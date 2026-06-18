@@ -54,6 +54,7 @@ export type TimeEntry = {
 };
 
 export type TicketStatus = "Cerrado" | "Pendiente" | "En Proceso" | "Cancelado";
+export type TicketApprovalStatus = "Pendiente" | "Aprobado" | "Rechazado";
 export type TicketWorkType = "Personal" | "Grupal";
 export type TicketAttentionType =
   | "Requerimiento"
@@ -78,6 +79,11 @@ export type Ticket = {
   estado: TicketStatus;
   fecha_termino: string;
   tipo_tck: TicketWorkType;
+  approval_status: TicketApprovalStatus;
+  rejection_reason: string;
+  requested_by?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
   responsables: string[];
   active: boolean;
   created_at?: string;

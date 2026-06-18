@@ -83,6 +83,8 @@ export const demoTickets: Ticket[] = [
     estado: "En Proceso",
     fecha_termino: "2026-06-11",
     tipo_tck: "Personal",
+    approval_status: "Aprobado",
+    rejection_reason: "",
     responsables: ["Kevin Medina"],
     active: true
   }

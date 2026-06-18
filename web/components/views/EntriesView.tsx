@@ -63,6 +63,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
   const [toDate, setToDate] = useState("");
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editMessage, setEditMessage] = useState("");
+  const approvedTickets = useMemo(() => tickets.filter((ticket) => ticket.approval_status === "Aprobado"), [tickets]);
 
   const resources = useMemo(() => Array.from(new Set(entries.map((entry) => entry.recurso))).sort(), [entries]);
   const filteredEntries = useMemo(() => {
@@ -100,8 +101,8 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
       setEditMessage("Completa TCK, sociedad y horas antes de guardar.");
       return;
     }
-    if (!tickets.some((ticket) => ticketMatchesEntry(ticket, editingEntry, profile))) {
-      setEditMessage("Selecciona un ticket existente asignado a tu usuario.");
+    if (!approvedTickets.some((ticket) => ticketMatchesEntry(ticket, editingEntry, profile))) {
+      setEditMessage("Selecciona un ticket existente, aprobado y asignado a tu usuario.");
       return;
     }
     if (editingEntry.horas_invertidas <= 0 || editingEntry.horas_invertidas > 8) {
@@ -170,7 +171,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
           </div>
           {editMessage && <div className="notice">{editMessage}</div>}
           <div className="grid grid-3">
-            <TicketCodeField label="Codigo TCK" value={editingEntry.codigo_tck} tickets={tickets} onChange={(value) => patchEditing({ codigo_tck: value })} />
+            <TicketCodeField label="Codigo TCK" value={editingEntry.codigo_tck} tickets={approvedTickets} onChange={(value) => patchEditing({ codigo_tck: value })} />
             <label>
               Fecha reporte
               <input type="date" value={editingEntry.fecha_reporte} onChange={(e) => patchEditing({ fecha_reporte: e.target.value })} />

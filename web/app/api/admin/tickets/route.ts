@@ -14,6 +14,7 @@ const ticketPrefixes: Record<TicketAttentionType, string> = {
 
 const ticketTypes = Object.keys(ticketPrefixes) as TicketAttentionType[];
 const ticketStatuses = ["Cerrado", "Pendiente", "En Proceso", "Cancelado"];
+const approvalStatuses = ["Pendiente", "Aprobado", "Rechazado"];
 const workTypes = ["Personal", "Grupal"];
 
 function adminClient() {
@@ -101,6 +102,10 @@ function validateTicket(ticket: Ticket) {
   }
   if (!ticketTypes.includes(ticket.tipo_atencion)) throw new Error(`Tipo de atencion invalido: ${ticket.tipo_atencion}`);
   if (!ticketStatuses.includes(ticket.estado)) throw new Error(`Estado invalido: ${ticket.estado}`);
+  if (!approvalStatuses.includes(ticket.approval_status)) throw new Error(`Aprobacion invalida: ${ticket.approval_status}`);
+  if (ticket.approval_status === "Rechazado" && !ticket.rejection_reason.trim()) {
+    throw new Error("El motivo de rechazo es obligatorio.");
+  }
   if (!workTypes.includes(ticket.tipo_tck)) throw new Error(`Tipo de ticket invalido: ${ticket.tipo_tck}`);
 
   const responsables = cleanList(ticket.responsables ?? []);
@@ -134,6 +139,11 @@ async function readTickets(supabase: ReturnType<typeof adminClient>): Promise<Ti
     estado: row.estado,
     fecha_termino: row.fecha_termino,
     tipo_tck: row.tipo_tck,
+    approval_status: row.approval_status ?? "Aprobado",
+    rejection_reason: row.rejection_reason ?? "",
+    requested_by: row.requested_by ?? null,
+    reviewed_by: row.reviewed_by ?? null,
+    reviewed_at: row.reviewed_at ?? null,
     responsables: (row.ticket_responsables ?? []).map((item: { resource_name: string }) => item.resource_name),
     active: row.active,
     created_at: row.created_at,
@@ -169,6 +179,8 @@ export async function POST(request: Request) {
         usuario_solicitante: ticket.usuario_solicitante.trim(),
         subject_correo: ticket.subject_correo.trim(),
         alcance_correo: ticket.alcance_correo.trim(),
+        approval_status: ticket.approval_status ?? "Aprobado",
+        rejection_reason: ticket.rejection_reason?.trim() ?? "",
         responsables: cleanList(ticket.responsables ?? []),
         active: ticket.active !== false
       }));
@@ -204,6 +216,9 @@ export async function POST(request: Request) {
         estado: ticket.estado,
         fecha_termino: ticket.fecha_termino,
         tipo_tck: ticket.tipo_tck,
+        approval_status: ticket.approval_status,
+        rejection_reason: ticket.approval_status === "Rechazado" ? ticket.rejection_reason : "",
+        reviewed_at: ["Aprobado", "Rechazado"].includes(ticket.approval_status) ? new Date().toISOString() : null,
         active: true,
         updated_at: new Date().toISOString()
       };

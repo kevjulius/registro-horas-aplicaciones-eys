@@ -1,16 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Pencil, Search, Trash2 } from "lucide-react";
+import { Check, Pencil, Search, Trash2, XCircle } from "lucide-react";
 import {
   emptyTicket,
   SelectField,
+  ticketApprovalStatuses,
   ticketAttentionTypes,
   ticketEstados,
   TicketForm,
   today
 } from "@/components/app-shared";
-import { saveTickets } from "@/lib/repository";
+import { requestTicket, saveTickets } from "@/lib/repository";
 import type { MasterData, Profile, Ticket } from "@/lib/types";
 
 export function TicketsView({
@@ -24,17 +25,28 @@ export function TicketsView({
   tickets: Ticket[];
   onChanged: () => void;
 }) {
-  const [draftTicket, setDraftTicket] = useState<Ticket>(() => emptyTicket());
+  const isAdmin = profile.role === "administracion";
+  function newDraftTicket(): Ticket {
+    const draft = emptyTicket();
+    return {
+      ...draft,
+      approval_status: isAdmin ? "Aprobado" : "Pendiente",
+      responsables: isAdmin ? [] : [profile.resource_name ?? ""].filter(Boolean),
+      tipo_tck: "Personal" as const
+    };
+  }
+
+  const [draftTicket, setDraftTicket] = useState<Ticket>(() => newDraftTicket());
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [ticketView, setTicketView] = useState<"crear" | "listado">("listado");
   const [ticketMessage, setTicketMessage] = useState("");
   const [ticketSearch, setTicketSearch] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("Todos");
+  const [ticketApprovalFilter, setTicketApprovalFilter] = useState("Todos");
   const [ticketTypeFilter, setTicketTypeFilter] = useState("Todos");
   const [ticketResponsibleFilter, setTicketResponsibleFilter] = useState("Todos");
   const [ticketDateFrom, setTicketDateFrom] = useState(today());
   const [ticketDateTo, setTicketDateTo] = useState(today());
-  const isAdmin = profile.role === "administracion";
 
   const filteredTickets = useMemo(() => {
     const search = ticketSearch.trim().toLowerCase();
@@ -42,6 +54,7 @@ export function TicketsView({
       if (ticketDateFrom && ticket.fecha_recepcion < ticketDateFrom) return false;
       if (ticketDateTo && ticket.fecha_recepcion > ticketDateTo) return false;
       if (ticketStatusFilter !== "Todos" && ticket.estado !== ticketStatusFilter) return false;
+      if (ticketApprovalFilter !== "Todos" && ticket.approval_status !== ticketApprovalFilter) return false;
       if (ticketTypeFilter !== "Todos" && ticket.tipo_atencion !== ticketTypeFilter) return false;
       if (ticketResponsibleFilter !== "Todos" && !ticket.responsables.includes(ticketResponsibleFilter)) return false;
       if (search) {
@@ -51,17 +64,20 @@ export function TicketsView({
           ticket.usuario_solicitante,
           ticket.subject_correo,
           ticket.alcance_correo,
+          ticket.approval_status,
+          ticket.rejection_reason,
           ticket.responsables.join(" ")
         ].join(" ").toLowerCase();
         if (!haystack.includes(search)) return false;
       }
       return true;
     });
-  }, [tickets, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
+  }, [tickets, ticketApprovalFilter, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
 
   function clearTicketFilters() {
     setTicketSearch("");
     setTicketStatusFilter("Todos");
+    setTicketApprovalFilter("Todos");
     setTicketTypeFilter("Todos");
     setTicketResponsibleFilter("Todos");
     setTicketDateFrom(today());
@@ -105,6 +121,7 @@ export function TicketsView({
       ticket.tipo_tck
     ];
     if (required.some((value) => !String(value ?? "").trim())) return "Todos los campos del ticket son obligatorios.";
+    if (ticket.approval_status === "Rechazado" && !ticket.rejection_reason.trim()) return "El motivo de rechazo es obligatorio.";
     if (ticket.tipo_tck === "Personal" && ticket.responsables.length !== 1) return "Un ticket Personal debe tener exactamente un responsable.";
     if (ticket.tipo_tck === "Grupal" && ticket.responsables.length < 2) return "Un ticket Grupal debe tener dos o mas responsables.";
     return "";
@@ -117,9 +134,10 @@ export function TicketsView({
       return;
     }
     try {
-      await saveTickets([ticket]);
+      if (isAdmin) await saveTickets([ticket]);
+      else await requestTicket({ ...ticket, approval_status: "Pendiente", rejection_reason: "", responsables: [profile.resource_name ?? ""].filter(Boolean), tipo_tck: "Personal" });
       setTicketMessage(successMessage);
-      setDraftTicket(emptyTicket());
+      setDraftTicket(newDraftTicket());
       setEditingTicket(null);
       setTicketView("listado");
       onChanged();
@@ -139,12 +157,30 @@ export function TicketsView({
     }
   }
 
+  async function reviewTicket(ticket: Ticket, approvalStatus: "Aprobado" | "Rechazado") {
+    const rejectionReason = approvalStatus === "Rechazado"
+      ? window.prompt("Motivo de rechazo")?.trim() ?? ""
+      : "";
+    if (approvalStatus === "Rechazado" && !rejectionReason) {
+      setTicketMessage("El motivo de rechazo es obligatorio.");
+      return;
+    }
+
+    try {
+      await saveTickets([{ ...ticket, approval_status: approvalStatus, rejection_reason: rejectionReason }]);
+      setTicketMessage(approvalStatus === "Aprobado" ? "Ticket aprobado." : "Ticket rechazado.");
+      onChanged();
+    } catch (error) {
+      setTicketMessage(error instanceof Error ? error.message : "No se pudo revisar ticket.");
+    }
+  }
+
   return (
     <section className="grid">
       <div className="section-head">
         <div>
           <h2>Tickets</h2>
-          <p className="muted">{isAdmin ? "Gestiona tickets y responsables." : "Solo ves los tickets asignados a tu recurso."}</p>
+          <p className="muted">{isAdmin ? "Gestiona tickets, responsables y aprobaciones." : "Solicita tickets y consulta el estado de aprobacion."}</p>
         </div>
         <div className="toolbar">
           <span className="pill">Tickets: {filteredTickets.length}</span>
@@ -153,20 +189,24 @@ export function TicketsView({
       </div>
 
       <div className="segmented">
-        {isAdmin && <button className={ticketView === "crear" ? "active" : ""} type="button" onClick={() => { setTicketMessage(""); setTicketView("crear"); }}>Crear ticket</button>}
+        <button className={ticketView === "crear" ? "active" : ""} type="button" onClick={() => { setTicketMessage(""); setDraftTicket(newDraftTicket()); setTicketView("crear"); }}>
+          {isAdmin ? "Crear ticket" : "Solicitar ticket"}
+        </button>
         <button className={ticketView === "listado" ? "active" : ""} type="button" onClick={() => { setTicketMessage(""); setTicketView("listado"); }}>Listado de tickets</button>
       </div>
 
       {ticketMessage && <pre className="notice">{ticketMessage}</pre>}
 
-      {ticketView === "crear" && isAdmin && (
+      {ticketView === "crear" && (
         <TicketForm
           ticket={draftTicket}
           masters={masters}
           onPatch={patchDraft}
           onToggleResponsible={(resource) => toggleTicketResponsible(draftTicket, resource, patchDraft)}
-          submitLabel="Crear ticket"
-          onSubmit={() => persistTicket(draftTicket, "Ticket creado.")}
+          submitLabel={isAdmin ? "Crear ticket" : "Enviar solicitud"}
+          onSubmit={() => persistTicket(draftTicket, isAdmin ? "Ticket creado." : "Solicitud enviada para aprobacion.")}
+          canEditApproval={isAdmin}
+          responsibilitiesDisabled={!isAdmin}
         />
       )}
 
@@ -182,6 +222,7 @@ export function TicketsView({
                 </div>
               </label>
               <SelectField label="Estado" value={ticketStatusFilter} options={["Todos", ...ticketEstados]} onChange={setTicketStatusFilter} />
+              <SelectField label="Aprobacion" value={ticketApprovalFilter} options={["Todos", ...ticketApprovalStatuses]} onChange={setTicketApprovalFilter} />
               <SelectField label="Tipo" value={ticketTypeFilter} options={["Todos", ...ticketAttentionTypes]} onChange={setTicketTypeFilter} />
               <SelectField label="Responsable" value={ticketResponsibleFilter} options={["Todos", ...masters.recursos]} onChange={setTicketResponsibleFilter} />
               <label>
@@ -205,6 +246,7 @@ export function TicketsView({
               submitLabel="Guardar ticket"
               onSubmit={() => persistTicket(editingTicket, "Ticket actualizado.")}
               onClose={() => setEditingTicket(null)}
+              canEditApproval
             />
           )}
 
@@ -220,6 +262,7 @@ export function TicketsView({
                   <th>Solicitante</th>
                   <th>Tipo</th>
                   <th>Estado</th>
+                  <th>Aprobacion</th>
                   <th>Responsables</th>
                   <th>Subject</th>
                   {isAdmin && <th></th>}
@@ -236,6 +279,12 @@ export function TicketsView({
                     <td>{ticket.usuario_solicitante}</td>
                     <td>{ticket.tipo_atencion}</td>
                     <td><span className={`status ${ticket.estado === "Cerrado" ? "closed" : "progress"}`}>{ticket.estado}</span></td>
+                    <td>
+                      <span className={`status ${ticket.approval_status === "Aprobado" ? "closed" : "progress"}`}>
+                        {ticket.approval_status}
+                      </span>
+                      {ticket.approval_status === "Rechazado" && ticket.rejection_reason ? <div className="muted">{ticket.rejection_reason}</div> : null}
+                    </td>
                     <td className="description-cell">{ticket.responsables.join("; ")}</td>
                     <td className="description-cell">{ticket.subject_correo}</td>
                     {isAdmin && (
@@ -244,6 +293,16 @@ export function TicketsView({
                           <button className="secondary icon-button" type="button" title="Editar ticket" onClick={() => { setEditingTicket(ticket); setTicketMessage(""); }}>
                             <Pencil size={16} />
                           </button>
+                          {ticket.approval_status === "Pendiente" && (
+                            <>
+                              <button className="secondary icon-button" type="button" title="Aprobar ticket" onClick={() => reviewTicket(ticket, "Aprobado")}>
+                                <Check size={16} />
+                              </button>
+                              <button className="secondary icon-button" type="button" title="Rechazar ticket" onClick={() => reviewTicket(ticket, "Rechazado")}>
+                                <XCircle size={16} />
+                              </button>
+                            </>
+                          )}
                           <button className="secondary icon-button" type="button" title="Eliminar ticket" onClick={() => deleteTicket(ticket)}>
                             <Trash2 size={16} />
                           </button>

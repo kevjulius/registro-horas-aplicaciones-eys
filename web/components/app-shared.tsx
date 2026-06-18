@@ -6,6 +6,7 @@ import type { MasterData, Profile, Ticket, TicketAttentionType, TimeEntry } from
 
 export const estados = ["En Proceso", "Cerrado", "Pendiente"] as const;
 export const ticketEstados = ["Cerrado", "Pendiente", "En Proceso", "Cancelado"] as const;
+export const ticketApprovalStatuses = ["Pendiente", "Aprobado", "Rechazado"] as const;
 export const ticketAttentionTypes: TicketAttentionType[] = [
   "Requerimiento",
   "Proyecto",
@@ -66,6 +67,8 @@ export function emptyTicket(): Ticket {
     estado: "Pendiente",
     fecha_termino: today(),
     tipo_tck: "Personal",
+    approval_status: "Aprobado",
+    rejection_reason: "",
     responsables: [],
     active: true
   };
@@ -73,6 +76,7 @@ export function emptyTicket(): Ticket {
 
 export function ticketMatchesEntry(ticket: Ticket, entry: TimeEntry, profile: Profile) {
   if (ticket.codigo_tck.toUpperCase() !== entry.codigo_tck.trim().toUpperCase()) return false;
+  if (ticket.approval_status !== "Aprobado") return false;
   if (profile.role === "trabajador" && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
   return true;
 }
@@ -206,7 +210,9 @@ export function TicketForm({
   onToggleResponsible,
   submitLabel,
   onSubmit,
-  onClose
+  onClose,
+  canEditApproval = false,
+  responsibilitiesDisabled = false
 }: {
   ticket: Ticket;
   masters: MasterData;
@@ -215,6 +221,8 @@ export function TicketForm({
   submitLabel: string;
   onSubmit: () => void;
   onClose?: () => void;
+  canEditApproval?: boolean;
+  responsibilitiesDisabled?: boolean;
 }) {
   return (
     <div className="card grid ticket-form-card">
@@ -254,6 +262,20 @@ export function TicketForm({
             <input value={ticket.tipo_tck} disabled />
           </label>
         </div>
+        {canEditApproval && (
+          <div className="grid grid-2">
+            <label>
+              Aprobacion
+              <select value={ticket.approval_status} onChange={(event) => onPatch({ approval_status: event.target.value as Ticket["approval_status"] })}>
+                {ticketApprovalStatuses.map((state) => <option key={state} value={state}>{state}</option>)}
+              </select>
+            </label>
+            <label>
+              Motivo de rechazo
+              <input value={ticket.rejection_reason ?? ""} onChange={(event) => onPatch({ rejection_reason: event.target.value })} placeholder="Obligatorio si se rechaza" />
+            </label>
+          </div>
+        )}
       </div>
 
       <div className="form-band">
@@ -288,6 +310,7 @@ export function TicketForm({
                   key={resource}
                   type="button"
                   className={ticket.responsables.includes(resource) ? "active" : ""}
+                  disabled={responsibilitiesDisabled}
                   onClick={() => onToggleResponsible(resource)}
                 >
                   {resource}

@@ -68,6 +68,7 @@ export function parseBulkText(text: string, masters: MasterData, tickets: Ticket
     if (row.fecha_fin && !isIsoDate(row.fecha_fin)) rowErrors.push(`fecha_fin debe tener formato aaaa-mm-dd: ${row.fecha_fin}`);
     if (!usuario) rowErrors.push(`usuario_reporta no existe: ${row.usuario_reporta}`);
     if (!ticket) rowErrors.push(`codigo_tck no existe o no esta asignado al usuario: ${row.codigo_tck}`);
+    if (ticket && ticket.approval_status !== "Aprobado") rowErrors.push(`codigo_tck no esta aprobado para registrar horas: ${row.codigo_tck}`);
     if (!recurso) rowErrors.push(`recurso no existe: ${row.recurso}`);
     if (!aplicativo) rowErrors.push(`aplicativo no existe: ${row.aplicativo}`);
     if (!tipo) rowErrors.push(`tipo_atencion no existe: ${row.tipo_atencion}`);
