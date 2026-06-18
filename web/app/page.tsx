@@ -15,6 +15,7 @@ import {
   loadProfiles,
   loadTeams,
   loadTickets,
+  loadVisibleResources,
   signIn,
   signOut,
   updatePassword
@@ -45,6 +46,7 @@ export default function Home() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [visibleResources, setVisibleResources] = useState<string[]>([]);
   const [loginMessage, setLoginMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -66,18 +68,20 @@ export default function Home() {
 
   async function refresh(currentProfile = profile) {
     if (!currentProfile) return;
-    const [masterData, entryData, profileData, teamData, ticketData] = await Promise.all([
-      loadMasters(),
+    const masterData = await loadMasters();
+    const [entryData, profileData, teamData, ticketData, visibleResourceData] = await Promise.all([
       loadEntries(currentProfile),
       currentProfile.role === "administracion" ? loadProfiles() : Promise.resolve([]),
       currentProfile.role === "administracion" ? loadTeams() : Promise.resolve([]),
-      loadTickets(currentProfile)
+      loadTickets(currentProfile),
+      loadVisibleResources(currentProfile, masterData)
     ]);
     setMasters(masterData);
     setEntries(entryData);
     setProfiles(profileData);
     setTeams(teamData);
     setTickets(ticketData);
+    setVisibleResources(visibleResourceData);
   }
 
   async function handleLogin(event: React.FormEvent) {
@@ -123,6 +127,7 @@ export default function Home() {
     setProfiles([]);
     setTeams([]);
     setTickets([]);
+    setVisibleResources([]);
     setPassword("");
     setPage("registrar");
   }
@@ -210,7 +215,7 @@ export default function Home() {
         {page === "registrar" && <RegisterView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
         {page === "carga" && <BulkUploadView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
         {page === "listado" && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
-        {page === "tickets" && <TicketsView profile={profile} masters={masters} tickets={tickets} onChanged={() => refresh(profile)} />}
+        {page === "tickets" && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} onChanged={() => refresh(profile)} />}
         {page === "dashboard" &&
           (profile.role === "administracion" ? (
             <DashboardView entries={entries} teams={teams} />

@@ -212,7 +212,8 @@ export function TicketForm({
   onSubmit,
   onClose,
   canEditApproval = false,
-  responsibilitiesDisabled = false
+  responsibilitiesDisabled = false,
+  resourceOptions
 }: {
   ticket: Ticket;
   masters: MasterData;
@@ -223,7 +224,10 @@ export function TicketForm({
   onClose?: () => void;
   canEditApproval?: boolean;
   responsibilitiesDisabled?: boolean;
+  resourceOptions?: string[];
 }) {
+  const responsibleOptions = resourceOptions ?? masters.recursos;
+
   return (
     <div className="card grid ticket-form-card">
       <div className="section-head compact">
@@ -305,7 +309,7 @@ export function TicketForm({
           <label>
             Responsables
             <div className="multi-select team-select">
-              {masters.recursos.map((resource) => (
+              {responsibleOptions.map((resource) => (
                 <button
                   key={resource}
                   type="button"

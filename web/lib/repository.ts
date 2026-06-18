@@ -325,6 +325,32 @@ export async function loadTeams(): Promise<Team[]> {
   return readLocal(teamsKey, demoTeams);
 }
 
+export async function loadVisibleResources(profile: Profile, masters: MasterData): Promise<string[]> {
+  if (profile.role === "administracion") return masters.recursos;
+
+  if (hasSupabaseConfig && supabase) {
+    const { data, error } = await supabase.rpc("current_visible_resource_names");
+    if (!error && data) {
+      return Array.from(
+        new Set(
+          (data as Array<{ resource_name: string }>)
+            .map((item) => item.resource_name)
+            .filter(Boolean)
+        )
+      ).sort((a, b) => a.localeCompare(b));
+    }
+    return profile.resource_name ? [profile.resource_name] : [];
+  }
+
+  const teams = readLocal(teamsKey, demoTeams);
+  const visible = new Set<string>();
+  if (profile.resource_name) visible.add(profile.resource_name);
+  teams
+    .filter((team) => team.active && team.profile_ids.includes(profile.id))
+    .forEach((team) => team.resources.forEach((resource) => visible.add(resource)));
+  return Array.from(visible).sort((a, b) => a.localeCompare(b));
+}
+
 export async function saveTeams(teams: Team[]): Promise<Team[]> {
   if (hasSupabaseConfig) {
     const response = await fetch("/api/admin/teams", {

@@ -18,20 +18,24 @@ export function TicketsView({
   profile,
   masters,
   tickets,
+  visibleResources,
   onChanged
 }: {
   profile: Profile;
   masters: MasterData;
   tickets: Ticket[];
+  visibleResources: string[];
   onChanged: () => void;
 }) {
   const isAdmin = profile.role === "administracion";
+  const responsibleOptions = isAdmin ? masters.recursos : visibleResources;
+
   function newDraftTicket(): Ticket {
     const draft = emptyTicket();
     return {
       ...draft,
       approval_status: isAdmin ? "Aprobado" : "Pendiente",
-      responsables: isAdmin ? [] : [profile.resource_name ?? ""].filter(Boolean),
+      responsables: isAdmin ? [] : [profile.resource_name ?? responsibleOptions[0] ?? ""].filter(Boolean),
       tipo_tck: "Personal" as const
     };
   }
@@ -122,6 +126,9 @@ export function TicketsView({
     ];
     if (required.some((value) => !String(value ?? "").trim())) return "Todos los campos del ticket son obligatorios.";
     if (ticket.approval_status === "Rechazado" && !ticket.rejection_reason.trim()) return "El motivo de rechazo es obligatorio.";
+    if (!isAdmin && ticket.responsables.some((resource) => !responsibleOptions.includes(resource))) {
+      return "Solo puedes asignar recursos de tus equipos.";
+    }
     if (ticket.tipo_tck === "Personal" && ticket.responsables.length !== 1) return "Un ticket Personal debe tener exactamente un responsable.";
     if (ticket.tipo_tck === "Grupal" && ticket.responsables.length < 2) return "Un ticket Grupal debe tener dos o mas responsables.";
     return "";
@@ -135,7 +142,7 @@ export function TicketsView({
     }
     try {
       if (isAdmin) await saveTickets([ticket]);
-      else await requestTicket({ ...ticket, approval_status: "Pendiente", rejection_reason: "", responsables: [profile.resource_name ?? ""].filter(Boolean), tipo_tck: "Personal" });
+      else await requestTicket({ ...ticket, approval_status: "Pendiente", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
       setTicketMessage(successMessage);
       setDraftTicket(newDraftTicket());
       setEditingTicket(null);
@@ -206,7 +213,7 @@ export function TicketsView({
           submitLabel={isAdmin ? "Crear ticket" : "Enviar solicitud"}
           onSubmit={() => persistTicket(draftTicket, isAdmin ? "Ticket creado." : "Solicitud enviada para aprobacion.")}
           canEditApproval={isAdmin}
-          responsibilitiesDisabled={!isAdmin}
+          resourceOptions={responsibleOptions}
         />
       )}
 
@@ -247,6 +254,7 @@ export function TicketsView({
               onSubmit={() => persistTicket(editingTicket, "Ticket actualizado.")}
               onClose={() => setEditingTicket(null)}
               canEditApproval
+              resourceOptions={responsibleOptions}
             />
           )}
 

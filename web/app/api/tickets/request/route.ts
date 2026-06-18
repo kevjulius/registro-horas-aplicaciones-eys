@@ -71,6 +71,10 @@ function padCode(prefix: string, yearSuffix: string, value: number) {
   return `${prefix}${yearSuffix}${String(value).padStart(4, "0")}`;
 }
 
+function cleanList(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
 function codeNumber(code: string, prefix: string, yearSuffix: string) {
   const match = code.match(new RegExp(`^${prefix}${yearSuffix}(\\d+)$`, "i"));
   return match ? Number(match[1]) : 0;
@@ -89,7 +93,40 @@ async function nextCode(supabase: ReturnType<typeof adminClient>, type: TicketAt
   return padCode(prefix, yearSuffix, nextNumber);
 }
 
-function validateTicket(ticket: Ticket) {
+async function visibleResourcesForProfile(supabase: ReturnType<typeof adminClient>, profile: Profile) {
+  const visible = new Set<string>();
+  if (profile.resource_name) visible.add(profile.resource_name);
+
+  const { data: memberships, error: membershipsError } = await supabase
+    .from("profile_teams")
+    .select("team_id")
+    .eq("profile_id", profile.id);
+  if (membershipsError) throw membershipsError;
+
+  const teamIds = (memberships ?? []).map((item) => item.team_id);
+  if (!teamIds.length) return Array.from(visible);
+
+  const { data: teams, error: teamsError } = await supabase
+    .from("teams")
+    .select("id")
+    .in("id", teamIds)
+    .eq("active", true);
+  if (teamsError) throw teamsError;
+
+  const activeTeamIds = (teams ?? []).map((item) => item.id);
+  if (!activeTeamIds.length) return Array.from(visible);
+
+  const { data: resources, error: resourcesError } = await supabase
+    .from("resource_teams")
+    .select("resource_name")
+    .in("team_id", activeTeamIds);
+  if (resourcesError) throw resourcesError;
+
+  (resources ?? []).forEach((item) => visible.add(item.resource_name));
+  return Array.from(visible);
+}
+
+function validateTicket(ticket: Ticket, responsables: string[], visibleResources: string[]) {
   const required = [
     ticket.fecha_solicitud,
     ticket.sistema,
@@ -108,6 +145,9 @@ function validateTicket(ticket: Ticket) {
   }
   if (!ticketTypes.includes(ticket.tipo_atencion)) throw new Error(`Tipo de atencion invalido: ${ticket.tipo_atencion}`);
   if (!ticketStatuses.includes(ticket.estado)) throw new Error(`Estado invalido: ${ticket.estado}`);
+  if (!responsables.length) throw new Error("Selecciona al menos un responsable.");
+  const invalidResources = responsables.filter((resource) => !visibleResources.includes(resource));
+  if (invalidResources.length) throw new Error(`No puedes asignar recursos fuera de tus equipos: ${invalidResources.join(", ")}`);
 }
 
 async function readTickets(supabase: ReturnType<typeof adminClient>, profile: Profile): Promise<Ticket[]> {
@@ -151,7 +191,9 @@ export async function POST(request: Request) {
     const supabase = adminClient();
     const profile = await requireProfile(request, supabase);
     const { ticket } = (await request.json()) as { ticket: Ticket };
-    validateTicket(ticket);
+    const visibleResources = await visibleResourcesForProfile(supabase, profile);
+    const responsables = cleanList(ticket.responsables?.length ? ticket.responsables : [profile.resource_name ?? ""]);
+    validateTicket(ticket, responsables, visibleResources);
 
     const codigoTck = await nextCode(supabase, ticket.tipo_atencion);
     const row = {
@@ -166,7 +208,7 @@ export async function POST(request: Request) {
       tipo_atencion: ticket.tipo_atencion,
       estado: ticket.estado,
       fecha_termino: ticket.fecha_termino,
-      tipo_tck: "Personal",
+      tipo_tck: responsables.length > 1 ? "Grupal" : "Personal",
       approval_status: "Pendiente",
       rejection_reason: "",
       requested_by: profile.id,
@@ -179,7 +221,7 @@ export async function POST(request: Request) {
 
     const { error: linkError } = await supabase
       .from("ticket_responsables")
-      .insert({ ticket_id: saved.id, resource_name: profile.resource_name });
+      .insert(responsables.map((resourceName) => ({ ticket_id: saved.id, resource_name: resourceName })));
     if (linkError) throw linkError;
 
     return NextResponse.json({ tickets: await readTickets(supabase, profile) });
