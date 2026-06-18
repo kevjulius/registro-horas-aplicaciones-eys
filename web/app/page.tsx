@@ -185,16 +185,25 @@ export default function Home() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <div className="session">
-          <h2>Sesion</h2>
-          <p>{profile.display_name}</p>
-          <p className="muted">{profile.email}</p>
-          <p className="muted">{profile.role}</p>
-          <button type="button" onClick={handleLogout}>
-            <LogOut size={16} /> Cerrar sesion
-          </button>
+        <div className="app-brand">
+          <span className="app-mark">E</span>
+          <strong>EyS Aplicaciones</strong>
         </div>
-        <nav>
+        <div className="session">
+          <div className="session-avatar">
+            {profile.display_name
+              .split(" ")
+              .map((part) => part[0])
+              .join("")
+              .slice(0, 2)}
+          </div>
+          <div>
+            <p className="session-name">{profile.display_name}</p>
+            <p className="muted">{profile.email}</p>
+            <p className="muted">{profile.role}</p>
+          </div>
+        </div>
+        <nav className="menu">
           {menuItems
             .filter((item) => item.key !== "admin" || profile.role === "administracion")
             .filter((item) => item.key !== "dashboard" || profile.role === "administracion")
@@ -209,6 +218,9 @@ export default function Home() {
               </button>
             ))}
         </nav>
+        <button className="logout-button" type="button" onClick={handleLogout}>
+          <LogOut size={16} /> Cerrar sesion
+        </button>
       </aside>
       <section className="main">
         <h1>EyS Aplicaciones</h1>

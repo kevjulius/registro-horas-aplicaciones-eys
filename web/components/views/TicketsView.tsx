@@ -66,7 +66,6 @@ export function TicketsView({
           ticket.codigo_tck,
           ticket.sistema,
           ticket.usuario_solicitante,
-          ticket.subject_correo,
           ticket.alcance_correo,
           ticket.approval_status,
           ticket.rejection_reason,
@@ -117,7 +116,6 @@ export function TicketsView({
       ticket.formato,
       ticket.usuario_solicitante,
       ticket.fecha_recepcion,
-      ticket.subject_correo,
       ticket.alcance_correo,
       ticket.tipo_atencion,
       ticket.estado,
@@ -141,8 +139,9 @@ export function TicketsView({
       return;
     }
     try {
-      if (isAdmin) await saveTickets([ticket]);
-      else await requestTicket({ ...ticket, approval_status: "Pendiente", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
+      const normalizedTicket = { ...ticket, subject_correo: ticket.alcance_correo };
+      if (isAdmin) await saveTickets([normalizedTicket]);
+      else await requestTicket({ ...normalizedTicket, approval_status: "Pendiente", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
       setTicketMessage(successMessage);
       setDraftTicket(newDraftTicket());
       setEditingTicket(null);
@@ -294,7 +293,7 @@ export function TicketsView({
                       {ticket.approval_status === "Rechazado" && ticket.rejection_reason ? <div className="muted">{ticket.rejection_reason}</div> : null}
                     </td>
                     <td className="description-cell">{ticket.responsables.join("; ")}</td>
-                    <td className="description-cell">{ticket.subject_correo}</td>
+                    <td className="description-cell">{ticket.alcance_correo}</td>
                     {isAdmin && (
                       <td>
                         <div className="row-actions">
