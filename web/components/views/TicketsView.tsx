@@ -272,7 +272,7 @@ export function TicketsView({
                   <th>Estado</th>
                   <th>Aprobacion</th>
                   <th>Responsables</th>
-                  <th>Subject</th>
+                  <th>Detalle</th>
                   {isAdmin && <th></th>}
                 </tr>
               </thead>

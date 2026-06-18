@@ -329,11 +329,11 @@ export function TicketForm({
         <h3>Detalle</h3>
         <div className="grid grid-2">
           <label>
-            Subject correo
+            Detalle de la Atencion
             <input value={ticket.subject_correo} onChange={(event) => onPatch({ subject_correo: event.target.value })} />
           </label>
           <label>
-            Alcance del correo
+            Alcance de la Atencion
             <textarea value={ticket.alcance_correo} onChange={(event) => onPatch({ alcance_correo: event.target.value })} />
           </label>
         </div>
