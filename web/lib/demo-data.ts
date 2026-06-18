@@ -1,4 +1,4 @@
-import type { MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
+import type { BiEntry, BiMasterData, MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
 
 export const demoProfiles: Profile[] = [
   {
@@ -13,11 +13,25 @@ export const demoProfiles: Profile[] = [
     id: "kevin",
     email: "kevin.medina@app.local",
     display_name: "Kevin Medina",
-    role: "trabajador",
+    role: "trabajador_aplicaciones",
     resource_name: "Kevin Medina",
     active: true
   }
 ];
+
+export const demoBiMasters: BiMasterData = {
+  recursos: ["Kevin Medina", "Evelyne Vera", "Darick Figueroa Mego", "Gianfranco Medina"],
+  servicios: ["Reporte BI", "Extraccion de datos", "Soporte BI"],
+  atenciones: [
+    { name: "Soporte", code: "SOP" },
+    { name: "Proyecto", code: "PRO" },
+    { name: "Requerimiento", code: "REQ" }
+  ],
+  estados: ["Pendiente", "En Proceso", "Cerrado", "Cancelado"],
+  formatos: ["BI", "Power BI", "Excel"]
+};
+
+export const demoBiEntries: BiEntry[] = [];
 
 export const demoMasterData: MasterData = {
   recursos: ["Kevin Medina", "Evelyne Vera", "Darick Figueroa Mego", "Gianfranco Medina"],

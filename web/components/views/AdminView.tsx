@@ -37,7 +37,7 @@ export function AdminView({
     id: `new-${crypto.randomUUID()}`,
     email: "",
     display_name: "",
-    role: "trabajador",
+    role: "trabajador_aplicaciones",
     resource_name: masters.recursos[0] ?? null,
     active: true
   });
@@ -135,7 +135,7 @@ export function AdminView({
       id: `new-${crypto.randomUUID()}`,
       email: "",
       display_name: "",
-      role: "trabajador",
+      role: "trabajador_aplicaciones",
       resource_name: masters.recursos[0] ?? null,
       active: true
     });
@@ -349,7 +349,9 @@ export function AdminView({
               <label>
                 Rol
                 <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as Profile["role"] })}>
-                  <option value="trabajador">trabajador</option>
+                  <option value="trabajador_aplicaciones">trabajador_aplicaciones</option>
+                  <option value="trabajador_bi">trabajador_bi</option>
+                  <option value="adminbi">adminbi</option>
                   <option value="administracion">administracion</option>
                 </select>
               </label>

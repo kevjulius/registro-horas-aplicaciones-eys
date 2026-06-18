@@ -1,4 +1,4 @@
-export type Role = "trabajador" | "administracion";
+export type Role = "trabajador" | "trabajador_aplicaciones" | "trabajador_bi" | "adminbi" | "administracion";
 
 export type Profile = {
   id: string;
@@ -16,6 +16,38 @@ export type MasterData = {
   aplicacionesDetalle: ApplicationMaster[];
   sociedades: string[];
   tiposAtencion: string[];
+};
+
+export type BiMasterData = {
+  recursos: string[];
+  servicios: string[];
+  atenciones: BiAttentionMaster[];
+  estados: string[];
+  formatos: string[];
+};
+
+export type BiAttentionMaster = {
+  name: string;
+  code: string;
+};
+
+export type BiEntry = {
+  id: string;
+  correlativo: string;
+  asignado_a: string;
+  formato: string;
+  solicitado_por: string;
+  servicio: string;
+  tipo_atencion: string;
+  estado: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  esfuerzo_horas: number;
+  descripcion: string;
+  created_by?: string | null;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type ApplicationMaster = {

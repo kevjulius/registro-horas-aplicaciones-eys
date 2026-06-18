@@ -1,14 +1,16 @@
 "use client";
 
-import { demoEntries, demoMasterData, demoProfiles, demoTeams, demoTickets } from "./demo-data";
+import { demoBiEntries, demoBiMasters, demoEntries, demoMasterData, demoProfiles, demoTeams, demoTickets } from "./demo-data";
 import { hasSupabaseConfig, supabase } from "./supabase";
-import type { MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
+import type { BiEntry, BiMasterData, MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
 
 const entriesKey = "eys.time_entries";
 const profilesKey = "eys.profiles";
 const mastersKey = "eys.masters";
 const teamsKey = "eys.teams";
 const ticketsKey = "eys.tickets";
+const biMastersKey = "eys.bi.masters";
+const biEntriesKey = "eys.bi.entries";
 
 function readLocal<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -103,6 +105,39 @@ export async function loadMasters(): Promise<MasterData> {
   return readLocal(mastersKey, demoMasterData);
 }
 
+export async function loadBiMasters(): Promise<BiMasterData> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/bi/masters", {
+      headers: await authHeaders()
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo leer maestras BI.");
+    }
+    const payload = (await response.json()) as { masters: BiMasterData };
+    return payload.masters;
+  }
+  return readLocal(biMastersKey, demoBiMasters);
+}
+
+export async function saveBiMasters(data: BiMasterData): Promise<BiMasterData> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/bi/masters", {
+      method: "PUT",
+      headers: await authHeaders(),
+      body: JSON.stringify({ masters: data })
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo guardar maestras BI.");
+    }
+    const payload = (await response.json()) as { masters: BiMasterData };
+    return payload.masters;
+  }
+  writeLocal(biMastersKey, data);
+  return data;
+}
+
 export async function saveMasters(data: MasterData): Promise<MasterData> {
   if (hasSupabaseConfig) {
     const response = await fetch("/api/admin/masters", {
@@ -132,6 +167,40 @@ export async function loadEntries(profile: Profile): Promise<TimeEntry[]> {
   const entries = readLocal(entriesKey, demoEntries);
   if (profile.role === "administracion") return entries;
   return entries.filter((entry) => entry.recurso === profile.resource_name);
+}
+
+export async function loadBiEntries(profile: Profile): Promise<BiEntry[]> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/bi/entries", {
+      headers: await authHeaders()
+    });
+    if (!response.ok) return [];
+    const payload = (await response.json()) as { entries: BiEntry[] };
+    return payload.entries;
+  }
+  const entries = readLocal(biEntriesKey, demoBiEntries);
+  if (["administracion", "adminbi"].includes(profile.role)) return entries;
+  return entries.filter((entry) => entry.asignado_a === profile.resource_name);
+}
+
+export async function saveBiEntry(entry: BiEntry): Promise<BiEntry[]> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/bi/entries", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ entry })
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo guardar registro BI.");
+    }
+    const payload = (await response.json()) as { entries: BiEntry[] };
+    return payload.entries;
+  }
+  const entries = readLocal(biEntriesKey, demoBiEntries);
+  const nextEntry = { ...entry, correlativo: entry.correlativo || `BI-LOC${String(entries.length + 1).padStart(7, "0")}` };
+  writeLocal(biEntriesKey, [nextEntry, ...entries]);
+  return [nextEntry, ...entries];
 }
 
 function mapTicket(row: Record<string, unknown>): Ticket {

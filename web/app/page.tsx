@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
+import { AdminBiView } from "@/components/views/AdminBiView";
 import { AdminView } from "@/components/views/AdminView";
+import { BiView } from "@/components/views/BiView";
 import { BulkUploadView } from "@/components/views/BulkUploadView";
 import { DashboardView } from "@/components/views/DashboardView";
 import { EntriesView } from "@/components/views/EntriesView";
@@ -10,6 +12,8 @@ import { RegisterView } from "@/components/views/RegisterView";
 import { TicketsView } from "@/components/views/TicketsView";
 import {
   getCurrentProfile,
+  loadBiEntries,
+  loadBiMasters,
   loadEntries,
   loadMasters,
   loadProfiles,
@@ -21,17 +25,40 @@ import {
   updatePassword
 } from "@/lib/repository";
 import type { MasterData, Profile, Team, Ticket, TimeEntry } from "@/lib/types";
+import type { BiEntry, BiMasterData } from "@/lib/types";
 
 const menuItems = [
   { key: "tickets", label: "Tickets" },
   { key: "listado", label: "Listado de Atenciones" },
   { key: "registrar", label: "Registrar Atencion" },
   { key: "carga", label: "Carga Masiva - Atencion" },
+  { key: "bi", label: "BI" },
   { key: "dashboard", label: "Dashboard" },
+  { key: "adminbi", label: "Administracion BI" },
   { key: "admin", label: "Administracion" }
 ] as const;
 
 type PageKey = (typeof menuItems)[number]["key"];
+
+function isApplicationRole(profile: Profile | null) {
+  return Boolean(profile && ["trabajador", "trabajador_aplicaciones", "administracion"].includes(profile.role));
+}
+
+function isBiRole(profile: Profile | null) {
+  return Boolean(profile && ["trabajador_bi", "adminbi", "administracion"].includes(profile.role));
+}
+
+function defaultPageFor(profile: Profile) {
+  return isApplicationRole(profile) ? "listado" : "bi";
+}
+
+function canViewPage(profile: Profile, key: PageKey) {
+  if (["tickets", "listado", "registrar", "carga"].includes(key)) return isApplicationRole(profile);
+  if (key === "bi") return isBiRole(profile);
+  if (key === "dashboard" || key === "admin") return profile.role === "administracion";
+  if (key === "adminbi") return ["adminbi", "administracion"].includes(profile.role);
+  return false;
+}
 
 export default function Home() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -42,7 +69,9 @@ export default function Home() {
   const [isRecovery, setIsRecovery] = useState(false);
   const [page, setPage] = useState<PageKey>("listado");
   const [masters, setMasters] = useState<MasterData | null>(null);
+  const [biMasters, setBiMasters] = useState<BiMasterData | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [biEntries, setBiEntries] = useState<BiEntry[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -61,6 +90,7 @@ export default function Home() {
       .then(async (currentProfile) => {
         if (!currentProfile) return;
         setProfile(currentProfile);
+        setPage(defaultPageFor(currentProfile));
         await refresh(currentProfile);
       })
       .finally(() => setLoading(false));
@@ -68,16 +98,22 @@ export default function Home() {
 
   async function refresh(currentProfile = profile) {
     if (!currentProfile) return;
-    const masterData = await loadMasters();
-    const [entryData, profileData, teamData, ticketData, visibleResourceData] = await Promise.all([
-      loadEntries(currentProfile),
+    const appAllowed = isApplicationRole(currentProfile);
+    const biAllowed = isBiRole(currentProfile);
+    const masterData = appAllowed ? await loadMasters() : null;
+    const biMasterData = biAllowed ? await loadBiMasters() : null;
+    const [entryData, biEntryData, profileData, teamData, ticketData, visibleResourceData] = await Promise.all([
+      appAllowed && masterData ? loadEntries(currentProfile) : Promise.resolve([]),
+      biAllowed ? loadBiEntries(currentProfile) : Promise.resolve([]),
       currentProfile.role === "administracion" ? loadProfiles() : Promise.resolve([]),
       currentProfile.role === "administracion" ? loadTeams() : Promise.resolve([]),
-      loadTickets(currentProfile),
-      loadVisibleResources(currentProfile, masterData)
+      appAllowed ? loadTickets(currentProfile) : Promise.resolve([]),
+      appAllowed && masterData ? loadVisibleResources(currentProfile, masterData) : Promise.resolve([])
     ]);
     setMasters(masterData);
+    setBiMasters(biMasterData);
     setEntries(entryData);
+    setBiEntries(biEntryData);
     setProfiles(profileData);
     setTeams(teamData);
     setTickets(ticketData);
@@ -92,6 +128,7 @@ export default function Home() {
       const currentProfile = await getCurrentProfile();
       if (!currentProfile) throw new Error("No existe un perfil activo para este usuario.");
       setProfile(currentProfile);
+      setPage(defaultPageFor(currentProfile));
       await refresh(currentProfile);
     } catch (error) {
       setLoginMessage(error instanceof Error ? error.message : "No se pudo ingresar.");
@@ -123,7 +160,9 @@ export default function Home() {
     await signOut();
     setProfile(null);
     setMasters(null);
+    setBiMasters(null);
     setEntries([]);
+    setBiEntries([]);
     setProfiles([]);
     setTeams([]);
     setTickets([]);
@@ -161,7 +200,7 @@ export default function Home() {
     );
   }
 
-  if (!profile || !masters) {
+  if (!profile || (isApplicationRole(profile) && !masters) || (isBiRole(profile) && !biMasters)) {
     return (
       <main className="login-shell">
         <form className="card login-card" onSubmit={handleLogin}>
@@ -205,8 +244,7 @@ export default function Home() {
         </div>
         <nav className="menu">
           {menuItems
-            .filter((item) => item.key !== "admin" || profile.role === "administracion")
-            .filter((item) => item.key !== "dashboard" || profile.role === "administracion")
+            .filter((item) => canViewPage(profile, item.key))
             .map((item) => (
               <button
                 key={item.key}
@@ -224,10 +262,11 @@ export default function Home() {
       </aside>
       <section className="main">
         <h1>EyS Aplicaciones</h1>
-        {page === "registrar" && <RegisterView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
-        {page === "carga" && <BulkUploadView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
-        {page === "listado" && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
-        {page === "tickets" && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} onChanged={() => refresh(profile)} />}
+        {page === "registrar" && masters && <RegisterView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
+        {page === "carga" && masters && <BulkUploadView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
+        {page === "listado" && masters && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
+        {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} onChanged={() => refresh(profile)} />}
+        {page === "bi" && biMasters && <BiView profile={profile} masters={biMasters} entries={biEntries} onChanged={() => refresh(profile)} />}
         {page === "dashboard" &&
           (profile.role === "administracion" ? (
             <DashboardView entries={entries} teams={teams} />
@@ -235,10 +274,16 @@ export default function Home() {
             <div className="notice">Solo administracion puede ver el dashboard.</div>
           ))}
         {page === "admin" &&
-          (profile.role === "administracion" ? (
+          (profile.role === "administracion" && masters ? (
             <AdminView currentUser={profile} masters={masters} profiles={profiles} teams={teams} onChanged={() => refresh(profile)} />
           ) : (
             <div className="notice">Solo administracion puede ingresar aqui.</div>
+          ))}
+        {page === "adminbi" &&
+          (["adminbi", "administracion"].includes(profile.role) && biMasters ? (
+            <AdminBiView masters={biMasters} onChanged={() => refresh(profile)} />
+          ) : (
+            <div className="notice">Solo admin BI puede ingresar aqui.</div>
           ))}
       </section>
     </main>
