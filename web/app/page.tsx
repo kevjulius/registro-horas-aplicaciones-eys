@@ -5,6 +5,7 @@ import { LogOut } from "lucide-react";
 import { AdminBiView } from "@/components/views/AdminBiView";
 import { AdminView } from "@/components/views/AdminView";
 import { BiView } from "@/components/views/BiView";
+import { BiBulkUploadView } from "@/components/views/BiBulkUploadView";
 import { BulkUploadView } from "@/components/views/BulkUploadView";
 import { DashboardView } from "@/components/views/DashboardView";
 import { EntriesView } from "@/components/views/EntriesView";
@@ -33,6 +34,7 @@ const menuItems = [
   { key: "registrar", label: "Registrar Atencion" },
   { key: "carga", label: "Carga Masiva - Atencion" },
   { key: "bi", label: "BI" },
+  { key: "cargabi", label: "Carga Masiva BI" },
   { key: "dashboard", label: "Dashboard" },
   { key: "adminbi", label: "Administracion BI" },
   { key: "admin", label: "Administracion" }
@@ -54,7 +56,7 @@ function defaultPageFor(profile: Profile) {
 
 function canViewPage(profile: Profile, key: PageKey) {
   if (["tickets", "listado", "registrar", "carga"].includes(key)) return isApplicationRole(profile);
-  if (key === "bi") return isBiRole(profile);
+  if (key === "bi" || key === "cargabi") return isBiRole(profile);
   if (key === "dashboard" || key === "admin") return profile.role === "administracion";
   if (key === "adminbi") return ["adminbi", "administracion"].includes(profile.role);
   return false;
@@ -267,9 +269,10 @@ export default function Home() {
         {page === "listado" && masters && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
         {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} onChanged={() => refresh(profile)} />}
         {page === "bi" && biMasters && <BiView profile={profile} masters={biMasters} entries={biEntries} onChanged={() => refresh(profile)} />}
+        {page === "cargabi" && biMasters && <BiBulkUploadView profile={profile} masters={biMasters} onSaved={() => refresh(profile)} />}
         {page === "dashboard" &&
           (profile.role === "administracion" ? (
-            <DashboardView entries={entries} teams={teams} />
+            <DashboardView entries={entries} biEntries={biEntries} teams={teams} />
           ) : (
             <div className="notice">Solo administracion puede ver el dashboard.</div>
           ))}

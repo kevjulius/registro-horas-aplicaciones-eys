@@ -203,6 +203,14 @@ export async function saveBiEntry(entry: BiEntry): Promise<BiEntry[]> {
   return [nextEntry, ...entries];
 }
 
+export async function saveBiEntries(entries: BiEntry[]): Promise<BiEntry[]> {
+  let latest: BiEntry[] = [];
+  for (const entry of entries) {
+    latest = await saveBiEntry(entry);
+  }
+  return latest;
+}
+
 function mapTicket(row: Record<string, unknown>): Ticket {
   const links = (row.ticket_responsables ?? []) as Array<{ resource_name: string }>;
   return {

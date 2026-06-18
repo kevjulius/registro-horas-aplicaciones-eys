@@ -2,9 +2,71 @@
 
 import { useMemo, useState } from "react";
 import { today } from "@/components/app-shared";
-import type { Team, TimeEntry } from "@/lib/types";
+import type { BiEntry, Team, TimeEntry } from "@/lib/types";
 
-export function DashboardView({ entries, teams }: { entries: TimeEntry[]; teams: Team[] }) {
+type ChartRow = {
+  resource: string;
+  hours: number;
+};
+
+function HoursChart({
+  title,
+  subtitle,
+  rows,
+  expectedHours
+}: {
+  title: string;
+  subtitle: string;
+  rows: ChartRow[];
+  expectedHours: number;
+}) {
+  const maxHours = Math.max(expectedHours, ...rows.map((row) => row.hours), 1);
+  const chartTrackTop = 78;
+  const chartTrackHeight = 220;
+  const expectedRatio = Math.max(0, Math.min(1, expectedHours / maxHours));
+  const expectedLineTop = `${chartTrackTop + (1 - expectedRatio) * chartTrackHeight}px`;
+  const totalHours = rows.reduce((sum, row) => sum + row.hours, 0);
+  const belowExpected = rows.filter((row) => row.hours < expectedHours).length;
+
+  return (
+    <div className="card dashboard-card">
+      <div className="section-head compact">
+        <div>
+          <h3>{title}</h3>
+          <p className="muted">{subtitle}</p>
+        </div>
+        <div className="toolbar">
+          <span className="pill">Recursos: {rows.length}</span>
+          <span className="pill muted-pill">Horas: {Number(totalHours.toFixed(2))}</span>
+          <span className="pill muted-pill">Debajo esperado: {belowExpected}</span>
+        </div>
+      </div>
+      <div className="dashboard-chart" style={{ "--expected-top": expectedLineTop } as React.CSSProperties}>
+        <div className="expected-line">
+          <span>{expectedHours}</span>
+        </div>
+        {rows.map((row) => {
+          const height = `${(row.hours / maxHours) * 100}%`;
+          return (
+            <div className="dashboard-bar-item" key={row.resource}>
+              <span className="bar-value">{row.hours}</span>
+              <div className="dashboard-bar-track">
+                <div
+                  className={row.hours >= expectedHours ? "dashboard-bar ok" : "dashboard-bar"}
+                  style={{ "--bar-height": height } as React.CSSProperties}
+                />
+              </div>
+              <span className="bar-label">{row.resource}</span>
+            </div>
+          );
+        })}
+        {rows.length === 0 && <p className="muted">No hay horas registradas para esos filtros.</p>}
+      </div>
+    </div>
+  );
+}
+
+export function DashboardView({ entries, biEntries, teams }: { entries: TimeEntry[]; biEntries: BiEntry[]; teams: Team[] }) {
   const [month, setMonth] = useState(today().slice(0, 7));
   const [teamId, setTeamId] = useState("Todos");
   const [expectedHours, setExpectedHours] = useState(176);
@@ -18,7 +80,7 @@ export function DashboardView({ entries, teams }: { entries: TimeEntry[]; teams:
     });
   }, [entries, month, selectedTeam]);
 
-  const chartRows = useMemo(() => {
+  const appRows = useMemo(() => {
     const totals = new Map<string, number>();
     monthEntries.forEach((entry) => {
       totals.set(entry.recurso, (totals.get(entry.recurso) ?? 0) + Number(entry.horas_invertidas));
@@ -33,13 +95,17 @@ export function DashboardView({ entries, teams }: { entries: TimeEntry[]; teams:
       .sort((a, b) => b.hours - a.hours || a.resource.localeCompare(b.resource));
   }, [monthEntries, selectedTeam]);
 
-  const maxHours = Math.max(expectedHours, ...chartRows.map((row) => row.hours), 1);
-  const chartTrackTop = 78;
-  const chartTrackHeight = 220;
-  const expectedRatio = Math.max(0, Math.min(1, expectedHours / maxHours));
-  const expectedLineTop = `${chartTrackTop + (1 - expectedRatio) * chartTrackHeight}px`;
-  const totalHours = chartRows.reduce((sum, row) => sum + row.hours, 0);
-  const belowExpected = chartRows.filter((row) => row.hours < expectedHours).length;
+  const biRows = useMemo(() => {
+    const totals = new Map<string, number>();
+    biEntries
+      .filter((entry) => entry.fecha_inicio.startsWith(month))
+      .forEach((entry) => {
+        totals.set(entry.asignado_a, (totals.get(entry.asignado_a) ?? 0) + Number(entry.esfuerzo_horas));
+      });
+    return Array.from(totals.entries())
+      .map(([resource, hours]) => ({ resource, hours: Number(hours.toFixed(2)) }))
+      .sort((a, b) => b.hours - a.hours || a.resource.localeCompare(b.resource));
+  }, [biEntries, month]);
 
   return (
     <section className="grid">
@@ -47,11 +113,6 @@ export function DashboardView({ entries, teams }: { entries: TimeEntry[]; teams:
         <div>
           <h2>Dashboard</h2>
           <p className="muted">Horas registradas por recurso durante el mes seleccionado.</p>
-        </div>
-        <div className="toolbar">
-          <span className="pill">Recursos: {chartRows.length}</span>
-          <span className="pill muted-pill">Horas: {Number(totalHours.toFixed(2))}</span>
-          <span className="pill muted-pill">Debajo esperado: {belowExpected}</span>
         </div>
       </div>
 
@@ -83,35 +144,19 @@ export function DashboardView({ entries, teams }: { entries: TimeEntry[]; teams:
         </div>
       </div>
 
-      <div className="card dashboard-card">
-        <div className="section-head compact">
-          <div>
-            <h3>Total de HH registradas {selectedTeam ? `- ${selectedTeam.name}` : ""}</h3>
-            <p className="muted">Horas esperadas para el mes: {expectedHours} hh por recurso.</p>
-          </div>
-        </div>
-        <div className="dashboard-chart" style={{ "--expected-top": expectedLineTop } as React.CSSProperties}>
-          <div className="expected-line">
-            <span>{expectedHours}</span>
-          </div>
-          {chartRows.map((row) => {
-            const height = `${(row.hours / maxHours) * 100}%`;
-            return (
-              <div className="dashboard-bar-item" key={row.resource}>
-                <span className="bar-value">{row.hours}</span>
-                <div className="dashboard-bar-track">
-                  <div
-                    className={row.hours >= expectedHours ? "dashboard-bar ok" : "dashboard-bar"}
-                    style={{ "--bar-height": height } as React.CSSProperties}
-                  />
-                </div>
-                <span className="bar-label">{row.resource}</span>
-              </div>
-            );
-          })}
-          {chartRows.length === 0 && <p className="muted">No hay horas registradas para esos filtros.</p>}
-        </div>
-      </div>
+      <HoursChart
+        title={`Aplicaciones - Total de HH registradas${selectedTeam ? ` - ${selectedTeam.name}` : ""}`}
+        subtitle={`Horas esperadas para el mes: ${expectedHours} hh por recurso.`}
+        rows={appRows}
+        expectedHours={expectedHours}
+      />
+
+      <HoursChart
+        title="BI - Total de HH registradas"
+        subtitle={`Horas esperadas para el mes: ${expectedHours} hh por recurso.`}
+        rows={biRows}
+        expectedHours={expectedHours}
+      />
     </section>
   );
 }
