@@ -17,6 +17,18 @@ const ticketStatuses = ["Cerrado", "Pendiente", "En Proceso", "Cancelado"];
 const approvalStatuses = ["Pendiente", "Aprobado", "Rechazado"];
 const workTypes = ["Personal", "Grupal"];
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const payload = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    return [payload.message, payload.details, payload.hint, payload.code]
+      .filter(Boolean)
+      .map(String)
+      .join(" | ") || fallback;
+  }
+  return fallback;
+}
+
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -163,7 +175,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ tickets: await readTickets(supabase) });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "No se pudo leer tickets." },
+      { error: errorMessage(error, "No se pudo leer tickets.") },
       { status: 500 }
     );
   }
@@ -246,7 +258,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ tickets: await readTickets(supabase) });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "No se pudo guardar tickets." },
+      { error: errorMessage(error, "No se pudo guardar tickets.") },
       { status: 500 }
     );
   }
