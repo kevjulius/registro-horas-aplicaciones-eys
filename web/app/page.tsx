@@ -23,10 +23,10 @@ import {
 import type { MasterData, Profile, Team, Ticket, TimeEntry } from "@/lib/types";
 
 const menuItems = [
+  { key: "tickets", label: "Tickets" },
+  { key: "listado", label: "Listado de Atenciones" },
   { key: "registrar", label: "Registrar Atencion" },
   { key: "carga", label: "Carga Masiva - Atencion" },
-  { key: "listado", label: "Listado de Atenciones" },
-  { key: "tickets", label: "Tickets" },
   { key: "dashboard", label: "Dashboard" },
   { key: "admin", label: "Administracion" }
 ] as const;
@@ -40,7 +40,7 @@ export default function Home() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isRecovery, setIsRecovery] = useState(false);
-  const [page, setPage] = useState<PageKey>("registrar");
+  const [page, setPage] = useState<PageKey>("listado");
   const [masters, setMasters] = useState<MasterData | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -129,7 +129,7 @@ export default function Home() {
     setTickets([]);
     setVisibleResources([]);
     setPassword("");
-    setPage("registrar");
+    setPage("listado");
   }
 
   if (loading) {

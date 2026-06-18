@@ -55,6 +55,7 @@ export function TicketsView({
   const filteredTickets = useMemo(() => {
     const search = ticketSearch.trim().toLowerCase();
     return tickets.filter((ticket) => {
+      if (!isAdmin && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
       if (ticketDateFrom && ticket.fecha_recepcion < ticketDateFrom) return false;
       if (ticketDateTo && ticket.fecha_recepcion > ticketDateTo) return false;
       if (ticketStatusFilter !== "Todos" && ticket.estado !== ticketStatusFilter) return false;
@@ -75,7 +76,7 @@ export function TicketsView({
       }
       return true;
     });
-  }, [tickets, ticketApprovalFilter, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
+  }, [isAdmin, profile.resource_name, tickets, ticketApprovalFilter, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
 
   function clearTicketFilters() {
     setTicketSearch("");
@@ -188,10 +189,6 @@ export function TicketsView({
           <h2>Tickets</h2>
           <p className="muted">{isAdmin ? "Gestiona tickets, responsables y aprobaciones." : "Solicita tickets y consulta el estado de aprobacion."}</p>
         </div>
-        <div className="toolbar">
-          <span className="pill">Tickets: {filteredTickets.length}</span>
-          <span className="pill muted-pill">Total: {tickets.length}</span>
-        </div>
       </div>
 
       <div className="segmented">
@@ -230,7 +227,7 @@ export function TicketsView({
               <SelectField label="Estado" value={ticketStatusFilter} options={["Todos", ...ticketEstados]} onChange={setTicketStatusFilter} />
               <SelectField label="Aprobacion" value={ticketApprovalFilter} options={["Todos", ...ticketApprovalStatuses]} onChange={setTicketApprovalFilter} />
               <SelectField label="Tipo" value={ticketTypeFilter} options={["Todos", ...ticketAttentionTypes]} onChange={setTicketTypeFilter} />
-              <SelectField label="Responsable" value={ticketResponsibleFilter} options={["Todos", ...masters.recursos]} onChange={setTicketResponsibleFilter} />
+              <SelectField label="Responsable" value={ticketResponsibleFilter} options={["Todos", ...responsibleOptions]} onChange={setTicketResponsibleFilter} />
               <label>
                 Desde recepcion
                 <input type="date" value={ticketDateFrom} onChange={(event) => setTicketDateFrom(event.target.value)} />
@@ -270,6 +267,7 @@ export function TicketsView({
                   <th>Tipo</th>
                   <th>Estado</th>
                   <th>Aprobacion</th>
+                  <th>Motivo de Rechazo</th>
                   <th>Responsables</th>
                   <th>Detalle</th>
                   {isAdmin && <th></th>}
@@ -290,8 +288,8 @@ export function TicketsView({
                       <span className={`status ${ticket.approval_status === "Aprobado" ? "closed" : "progress"}`}>
                         {ticket.approval_status}
                       </span>
-                      {ticket.approval_status === "Rechazado" && ticket.rejection_reason ? <div className="muted">{ticket.rejection_reason}</div> : null}
                     </td>
+                    <td className="description-cell">{ticket.approval_status === "Rechazado" ? ticket.rejection_reason : ""}</td>
                     <td className="description-cell">{ticket.responsables.join("; ")}</td>
                     <td className="description-cell">{ticket.alcance_correo}</td>
                     {isAdmin && (
