@@ -55,28 +55,33 @@ function cleanList(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
-function padCode(prefix: string, value: number) {
-  return `${prefix}${String(value).padStart(3, "0")}`;
+function currentYearSuffix() {
+  return String(new Date().getFullYear()).slice(-2);
 }
 
-function codeNumber(code: string, prefix: string) {
-  const match = code.match(new RegExp(`^${prefix}(\\d+)$`, "i"));
+function padCode(prefix: string, yearSuffix: string, value: number) {
+  return `${prefix}${yearSuffix}${String(value).padStart(4, "0")}`;
+}
+
+function codeNumber(code: string, prefix: string, yearSuffix: string) {
+  const match = code.match(new RegExp(`^${prefix}${yearSuffix}(\\d+)$`, "i"));
   return match ? Number(match[1]) : 0;
 }
 
 async function nextCode(supabase: ReturnType<typeof adminClient>, type: TicketAttentionType, usedCodes: Set<string>) {
   const prefix = ticketPrefixes[type];
+  const yearSuffix = currentYearSuffix();
   const { data, error } = await supabase
     .from("tickets")
     .select("codigo_tck")
-    .ilike("codigo_tck", `${prefix}%`);
+    .ilike("codigo_tck", `${prefix}${yearSuffix}%`);
   if (error) throw error;
 
-  let nextNumber = Math.max(0, ...(data ?? []).map((item) => codeNumber(item.codigo_tck, prefix))) + 1;
-  let candidate = padCode(prefix, nextNumber);
+  let nextNumber = Math.max(0, ...(data ?? []).map((item) => codeNumber(item.codigo_tck, prefix, yearSuffix))) + 1;
+  let candidate = padCode(prefix, yearSuffix, nextNumber);
   while (usedCodes.has(candidate)) {
     nextNumber += 1;
-    candidate = padCode(prefix, nextNumber);
+    candidate = padCode(prefix, yearSuffix, nextNumber);
   }
   usedCodes.add(candidate);
   return candidate;

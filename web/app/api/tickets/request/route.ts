@@ -51,25 +51,30 @@ async function requireProfile(request: Request, supabase: ReturnType<typeof admi
   return profile;
 }
 
-function padCode(prefix: string, value: number) {
-  return `${prefix}${String(value).padStart(3, "0")}`;
+function currentYearSuffix() {
+  return String(new Date().getFullYear()).slice(-2);
 }
 
-function codeNumber(code: string, prefix: string) {
-  const match = code.match(new RegExp(`^${prefix}(\\d+)$`, "i"));
+function padCode(prefix: string, yearSuffix: string, value: number) {
+  return `${prefix}${yearSuffix}${String(value).padStart(4, "0")}`;
+}
+
+function codeNumber(code: string, prefix: string, yearSuffix: string) {
+  const match = code.match(new RegExp(`^${prefix}${yearSuffix}(\\d+)$`, "i"));
   return match ? Number(match[1]) : 0;
 }
 
 async function nextCode(supabase: ReturnType<typeof adminClient>, type: TicketAttentionType) {
   const prefix = ticketPrefixes[type];
+  const yearSuffix = currentYearSuffix();
   const { data, error } = await supabase
     .from("tickets")
     .select("codigo_tck")
-    .ilike("codigo_tck", `${prefix}%`);
+    .ilike("codigo_tck", `${prefix}${yearSuffix}%`);
   if (error) throw error;
 
-  const nextNumber = Math.max(0, ...(data ?? []).map((item) => codeNumber(item.codigo_tck, prefix))) + 1;
-  return padCode(prefix, nextNumber);
+  const nextNumber = Math.max(0, ...(data ?? []).map((item) => codeNumber(item.codigo_tck, prefix, yearSuffix))) + 1;
+  return padCode(prefix, yearSuffix, nextNumber);
 }
 
 function validateTicket(ticket: Ticket) {
