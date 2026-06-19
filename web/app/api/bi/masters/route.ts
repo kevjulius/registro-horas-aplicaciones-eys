@@ -9,6 +9,18 @@ function adminClient() {
   return createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const payload = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    return [payload.message, payload.details, payload.hint, payload.code]
+      .filter(Boolean)
+      .map(String)
+      .join(" | ") || fallback;
+  }
+  return fallback;
+}
+
 async function requireBiProfile(request: Request, supabase: ReturnType<typeof adminClient>) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) throw new Error("Sesion no valida.");
@@ -70,6 +82,12 @@ export async function PUT(request: Request) {
       const values = uniqueClean(masters[key] ?? []);
       const valueSet = new Set(values);
       if (values.length) {
+        if (key === "recursos") {
+          const { error: resourceError } = await supabase
+            .from("resources")
+            .upsert(values.map((name) => ({ name, active: true })), { onConflict: "name" });
+          if (resourceError) throw resourceError;
+        }
         const { error } = await supabase.from(table).upsert(values.map((name) => ({ name, active: true })), { onConflict: "name" });
         if (error) throw error;
       }
@@ -100,6 +118,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ masters: await readMasters(supabase) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo guardar maestras BI." }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(error, "No se pudo guardar maestras BI.") }, { status: 500 });
   }
 }
