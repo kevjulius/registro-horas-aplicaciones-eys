@@ -51,13 +51,15 @@ async function readTeams(supabase: ReturnType<typeof adminClient>): Promise<Team
   const teamIds = (teams ?? []).map((team) => team.id);
   if (!teamIds.length) return [];
 
-  const [resourceLinks, profileLinks] = await Promise.all([
+  const [resourceLinks, profileLinks, applicationLinks] = await Promise.all([
     supabase.from("resource_teams").select("team_id, resource_name").in("team_id", teamIds),
-    supabase.from("profile_teams").select("team_id, profile_id").in("team_id", teamIds)
+    supabase.from("profile_teams").select("team_id, profile_id").in("team_id", teamIds),
+    supabase.from("team_applications").select("team_id, application_name").in("team_id", teamIds)
   ]);
 
   if (resourceLinks.error) throw resourceLinks.error;
   if (profileLinks.error) throw profileLinks.error;
+  if (applicationLinks.error) throw applicationLinks.error;
 
   return (teams ?? []).map((team) => ({
     id: team.id,
@@ -66,6 +68,10 @@ async function readTeams(supabase: ReturnType<typeof adminClient>): Promise<Team
     resources: (resourceLinks.data ?? [])
       .filter((item) => item.team_id === team.id)
       .map((item) => item.resource_name)
+      .sort((a, b) => a.localeCompare(b)),
+    applications: (applicationLinks.data ?? [])
+      .filter((item) => item.team_id === team.id)
+      .map((item) => item.application_name)
       .sort((a, b) => a.localeCompare(b)),
     profile_ids: (profileLinks.data ?? [])
       .filter((item) => item.team_id === team.id)
@@ -97,6 +103,7 @@ export async function POST(request: Request) {
         ...team,
         name: team.name.trim(),
         resources: cleanList(team.resources ?? []),
+        applications: cleanList(team.applications ?? []),
         profile_ids: cleanList(team.profile_ids ?? []),
         active: team.active !== false
       }))
@@ -127,12 +134,14 @@ export async function POST(request: Request) {
     }
 
     if (activeTeamIds.length) {
-      const [deleteResources, deleteProfiles] = await Promise.all([
+      const [deleteResources, deleteProfiles, deleteApplications] = await Promise.all([
         supabase.from("resource_teams").delete().in("team_id", activeTeamIds),
-        supabase.from("profile_teams").delete().in("team_id", activeTeamIds)
+        supabase.from("profile_teams").delete().in("team_id", activeTeamIds),
+        supabase.from("team_applications").delete().in("team_id", activeTeamIds)
       ]);
       if (deleteResources.error) throw deleteResources.error;
       if (deleteProfiles.error) throw deleteProfiles.error;
+      if (deleteApplications.error) throw deleteApplications.error;
     }
 
     const resourceRows = cleanTeams.flatMap((team) => {
@@ -145,6 +154,11 @@ export async function POST(request: Request) {
       if (!teamId) return [];
       return team.profile_ids.map((profileId) => ({ team_id: teamId, profile_id: profileId }));
     });
+    const applicationRows = cleanTeams.flatMap((team) => {
+      const teamId = existingByName.get(team.name);
+      if (!teamId) return [];
+      return team.applications.map((applicationName) => ({ team_id: teamId, application_name: applicationName }));
+    });
 
     if (resourceRows.length) {
       const { error } = await supabase.from("resource_teams").insert(resourceRows);
@@ -153,6 +167,11 @@ export async function POST(request: Request) {
 
     if (profileRows.length) {
       const { error } = await supabase.from("profile_teams").insert(profileRows);
+      if (error) throw error;
+    }
+
+    if (applicationRows.length) {
+      const { error } = await supabase.from("team_applications").insert(applicationRows);
       if (error) throw error;
     }
 

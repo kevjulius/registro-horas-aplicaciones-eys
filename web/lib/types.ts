@@ -75,6 +75,7 @@ export type Team = {
   name: string;
   active: boolean;
   resources: string[];
+  applications: string[];
   profile_ids: string[];
 };
 

@@ -126,12 +126,41 @@ async function visibleResourcesForProfile(supabase: ReturnType<typeof adminClien
   return Array.from(visible);
 }
 
+async function visibleApplicationsForProfile(supabase: ReturnType<typeof adminClient>, profile: Profile) {
+  const { data: memberships, error: membershipsError } = await supabase
+    .from("profile_teams")
+    .select("team_id")
+    .eq("profile_id", profile.id);
+  if (membershipsError) throw membershipsError;
+
+  const teamIds = (memberships ?? []).map((item) => item.team_id);
+  if (!teamIds.length) return [];
+
+  const { data: teams, error: teamsError } = await supabase
+    .from("teams")
+    .select("id")
+    .in("id", teamIds)
+    .eq("active", true);
+  if (teamsError) throw teamsError;
+
+  const activeTeamIds = (teams ?? []).map((item) => item.id);
+  if (!activeTeamIds.length) return [];
+
+  const { data: applications, error: applicationsError } = await supabase
+    .from("team_applications")
+    .select("application_name")
+    .in("team_id", activeTeamIds);
+  if (applicationsError) throw applicationsError;
+
+  return Array.from(new Set((applications ?? []).map((item) => item.application_name).filter(Boolean)));
+}
+
 async function loadMaxDaysByType(supabase: ReturnType<typeof adminClient>) {
   const { data } = await supabase.from("attention_type_rules").select("tipo_atencion, max_dias").eq("active", true);
   return Object.fromEntries((data ?? []).map((rule) => [rule.tipo_atencion, rule.max_dias])) as Record<string, number | null>;
 }
 
-function validateTicket(ticket: Ticket, responsables: string[], visibleResources: string[], maxDaysByType: Record<string, number | null>) {
+function validateTicket(ticket: Ticket, responsables: string[], visibleResources: string[], visibleApplications: string[], maxDaysByType: Record<string, number | null>) {
   const required = [
     ticket.fecha_solicitud,
     ticket.sistema,
@@ -169,6 +198,9 @@ function validateTicket(ticket: Ticket, responsables: string[], visibleResources
   if (!responsables.length) throw new Error("Selecciona al menos un responsable.");
   const invalidResources = responsables.filter((resource) => !visibleResources.includes(resource));
   if (invalidResources.length) throw new Error(`No puedes asignar recursos fuera de tus equipos: ${invalidResources.join(", ")}`);
+  if (!visibleApplications.includes(ticket.sistema)) {
+    throw new Error("Solo puedes crear tickets para sistemas asignados a tus equipos.");
+  }
 }
 
 async function readTickets(supabase: ReturnType<typeof adminClient>, profile: Profile): Promise<Ticket[]> {
@@ -215,10 +247,13 @@ export async function POST(request: Request) {
     const supabase = adminClient();
     const profile = await requireProfile(request, supabase);
     const { ticket } = (await request.json()) as { ticket: Ticket };
-    const visibleResources = await visibleResourcesForProfile(supabase, profile);
+    const [visibleResources, visibleApplications] = await Promise.all([
+      visibleResourcesForProfile(supabase, profile),
+      visibleApplicationsForProfile(supabase, profile)
+    ]);
     const responsables = cleanList(ticket.responsables?.length ? ticket.responsables : [profile.resource_name ?? ""]);
     const maxDaysByType = await loadMaxDaysByType(supabase);
-    validateTicket(ticket, responsables, visibleResources, maxDaysByType);
+    validateTicket(ticket, responsables, visibleResources, visibleApplications, maxDaysByType);
 
     const codigoTck = await nextCode(supabase, ticket.tipo_atencion);
     const row = {

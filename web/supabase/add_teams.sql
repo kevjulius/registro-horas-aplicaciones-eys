@@ -20,9 +20,16 @@ create table if not exists public.resource_teams (
   primary key (resource_name, team_id)
 );
 
+create table if not exists public.team_applications (
+  team_id uuid not null references public.teams(id) on delete cascade,
+  application_name text not null references public.applications(name) on update cascade on delete cascade,
+  primary key (team_id, application_name)
+);
+
 alter table public.teams enable row level security;
 alter table public.profile_teams enable row level security;
 alter table public.resource_teams enable row level security;
+alter table public.team_applications enable row level security;
 
 create or replace function public.current_visible_resource_names()
 returns table(resource_name text)
@@ -41,13 +48,29 @@ as $$
   where pt.profile_id = auth.uid()
 $$;
 
+create or replace function public.current_visible_application_names()
+returns table(application_name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select ta.application_name
+  from public.profile_teams pt
+  join public.teams t on t.id = pt.team_id and t.active = true
+  join public.team_applications ta on ta.team_id = pt.team_id
+  where pt.profile_id = auth.uid()
+$$;
+
 drop policy if exists "teams read admin" on public.teams;
 drop policy if exists "profile teams read admin" on public.profile_teams;
 drop policy if exists "resource teams read admin" on public.resource_teams;
+drop policy if exists "team applications read admin" on public.team_applications;
 
 create policy "teams read admin" on public.teams for select using (public.is_admin());
 create policy "profile teams read admin" on public.profile_teams for select using (public.is_admin());
 create policy "resource teams read admin" on public.resource_teams for select using (public.is_admin());
+create policy "team applications read admin" on public.team_applications for select using (public.is_admin());
 
 drop policy if exists "entries read own or admin" on public.time_entries;
 

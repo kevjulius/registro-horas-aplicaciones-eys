@@ -486,18 +486,23 @@ export async function loadVisibleApplications(profile: Profile, masters: MasterD
   if (hasSupabaseConfig && supabase) {
     const { data, error } = await supabase.rpc("current_visible_application_names");
     if (!error && data) {
-      const visible = Array.from(
+      return Array.from(
         new Set(
           (data as Array<{ application_name: string }>)
             .map((item) => item.application_name)
             .filter(Boolean)
         )
       ).sort((a, b) => a.localeCompare(b));
-      if (visible.length) return visible;
     }
+    if (!error) return [];
   }
 
-  return masters.aplicaciones;
+  const teams = readLocal(teamsKey, demoTeams);
+  const visible = new Set<string>();
+  teams
+    .filter((team) => team.active && team.profile_ids.includes(profile.id))
+    .forEach((team) => (team.applications ?? []).forEach((application) => visible.add(application)));
+  return Array.from(visible).sort((a, b) => a.localeCompare(b));
 }
 
 export async function saveTeams(teams: Team[]): Promise<Team[]> {

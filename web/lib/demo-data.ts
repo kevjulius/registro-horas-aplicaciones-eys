@@ -86,6 +86,7 @@ export const demoTeams: Team[] = [
     name: "BOT",
     active: true,
     resources: ["Kevin Medina", "Evelyne Vera"],
+    applications: ["BOT - CUL", "RPA - Aperturas"],
     profile_ids: ["admin", "kevin"]
   }
 ];

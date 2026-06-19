@@ -239,7 +239,7 @@ export function TicketForm({
   applicationOptions?: string[];
 }) {
   const responsibleOptions = resourceOptions ?? masters.recursos;
-  const systemOptions = applicationOptions?.length ? applicationOptions : masters.aplicaciones;
+  const systemOptions = applicationOptions ?? masters.aplicaciones;
   const attentionDetails = masters.tiposAtencionDetalle.length
     ? masters.tiposAtencionDetalle
     : masters.tiposAtencion.map((name) => {
@@ -312,6 +312,9 @@ export function TicketForm({
 
       <div className="form-band">
         <h3>Clasificacion y responsables</h3>
+        {systemOptions.length === 0 && (
+          <div className="notice inline-notice">Tu equipo no tiene sistemas asignados. Solicita a administracion configurar los sistemas visibles del equipo.</div>
+        )}
         <div className="ticket-form-grid">
           <SelectField label="Sistema" value={ticket.sistema} options={systemOptions} onChange={(value) => onPatch({ sistema: value })} />
           <SelectField label="Aplicativo se encuentra operativo" value={ticket.aplicativo_se_encuentra} options={siNo} onChange={(value) => onPatch({ aplicativo_se_encuentra: value as "Si" | "No" })} />

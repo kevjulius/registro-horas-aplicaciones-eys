@@ -155,6 +155,9 @@ export function TicketsView({
     if (!isAdmin && ticket.responsables.some((resource) => !responsibleOptions.includes(resource))) {
       return "Solo puedes asignar recursos de tus equipos.";
     }
+    if (!isAdmin && !visibleApplications.includes(ticket.sistema)) {
+      return "Solo puedes crear tickets para sistemas asignados a tus equipos.";
+    }
     if (ticket.tipo_tck === "Personal" && ticket.responsables.length !== 1) return "Un ticket Personal debe tener exactamente un responsable.";
     if (ticket.tipo_tck === "Grupal" && ticket.responsables.length < 2) return "Un ticket Grupal debe tener dos o mas responsables.";
     return "";

@@ -222,6 +222,7 @@ export function AdminView({
         name: "",
         active: true,
         resources: [],
+        applications: [],
         profile_ids: []
       }
     ]);
@@ -249,6 +250,14 @@ export function AdminView({
       ? team.profile_ids.filter((item) => item !== profileId)
       : [...team.profile_ids, profileId];
     patchTeam(index, { profile_ids });
+  }
+
+  function toggleTeamApplication(index: number, application: string) {
+    const team = localTeams[index];
+    const applications = (team.applications ?? []).includes(application)
+      ? (team.applications ?? []).filter((item) => item !== application)
+      : [...(team.applications ?? []), application];
+    patchTeam(index, { applications });
   }
 
   function removeTeam(index: number) {
@@ -512,7 +521,7 @@ export function AdminView({
                       <Trash2 size={16} />
                     </button>
                   </div>
-                  <div className="grid grid-2">
+                  <div className="grid grid-3">
                     <label>
                       Recursos visibles
                       <div className="multi-select team-select">
@@ -524,6 +533,21 @@ export function AdminView({
                             onClick={() => toggleTeamResource(index, resource)}
                           >
                             {resource}
+                          </button>
+                        ))}
+                      </div>
+                    </label>
+                    <label>
+                      Sistemas visibles
+                      <div className="multi-select team-select">
+                        {masters.aplicaciones.map((application) => (
+                          <button
+                            key={application}
+                            type="button"
+                            className={(team.applications ?? []).includes(application) ? "active" : ""}
+                            onClick={() => toggleTeamApplication(index, application)}
+                          >
+                            {application}
                           </button>
                         ))}
                       </div>
