@@ -6,15 +6,15 @@ import {
   clearHourValidation,
   emptyTicket,
   hourValidationMessage,
+  maxDaysForAttention,
   SelectField,
   ticketAttentionTypes,
   ticketEstados,
-  ticketMaxDaysByType,
   TicketForm,
   today,
   showHourValidation
 } from "@/components/app-shared";
-import { requestTicket, saveEntry, saveTickets } from "@/lib/repository";
+import { closeExpiredTickets, requestTicket, saveEntry, saveTickets } from "@/lib/repository";
 import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
 import type { MasterData, Profile, Ticket, TimeEntry } from "@/lib/types";
 
@@ -53,6 +53,7 @@ export function TicketsView({
   const [quickTicket, setQuickTicket] = useState<Ticket | null>(null);
   const [quickDate, setQuickDate] = useState(today());
   const [quickHours, setQuickHours] = useState(0);
+  const [quickDescription, setQuickDescription] = useState("");
   const [quickMessage, setQuickMessage] = useState("");
   const [ticketSearch, setTicketSearch] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("Todos");
@@ -144,12 +145,12 @@ export function TicketsView({
     if (ticket.fecha_termino < ticket.fecha_solicitud) return "La fecha termino no puede ser anterior a la fecha inicio.";
     if (ticket.fecha_termino < today() && ticket.estado !== "Cerrado") return "Si la fecha termino es anterior a hoy, el estado debe ser Cerrado.";
     if (ticket.fecha_termino >= today() && !["Cerrado", "En Proceso"].includes(ticket.estado)) return "Si la fecha termino es hoy o futura, el estado debe ser Cerrado o En Proceso.";
-    const maxDays = ticketMaxDaysByType[ticket.tipo_atencion];
+    const maxDays = maxDaysForAttention(masters, ticket.tipo_atencion);
     if (maxDays) {
       const start = new Date(`${ticket.fecha_solicitud}T00:00:00`);
       const end = new Date(`${ticket.fecha_termino}T00:00:00`);
       const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
-      if (days > maxDays) return `${ticket.tipo_atencion} permite maximo ${maxDays} dias.`;
+      if (days > maxDays) return `El tipo de atencion "${ticket.tipo_atencion}" permite maximo ${maxDays} dias.`;
     }
     if (!isAdmin && ticket.responsables.some((resource) => !responsibleOptions.includes(resource))) {
       return "Solo puedes asignar recursos de tus equipos.";
@@ -197,7 +198,14 @@ export function TicketsView({
     setQuickTicket(ticket);
     setQuickDate(ticket.fecha_solicitud <= today() && today() <= ticket.fecha_termino ? today() : ticket.fecha_solicitud);
     setQuickHours(0);
+    setQuickDescription("");
     setQuickMessage("");
+    setTicketSearch(ticket.codigo_tck);
+    setTicketStatusFilter("Todos");
+    setTicketTypeFilter("Todos");
+    setTicketResponsibleFilter("Todos");
+    setTicketDateFrom("");
+    setTicketDateTo("");
   }
 
   async function saveQuickEntry() {
@@ -211,7 +219,7 @@ export function TicketsView({
       return;
     }
     if (!ticketMatchesReportPeriod(quickTicket, quickDate)) {
-      setQuickMessage(`La fecha de reporte debe estar entre ${quickTicket.fecha_solicitud} y ${quickTicket.fecha_termino}.`);
+      setQuickMessage(`El rango de fecha del ticket es de ${quickTicket.fecha_solicitud} al ${quickTicket.fecha_termino}. En caso requiera extender la fecha fin, contactarse con el administrador.`);
       return;
     }
     if (quickHours <= 0 || quickHours > 8) {
@@ -228,7 +236,7 @@ export function TicketsView({
       aplicativo: quickTicket.sistema,
       fecha_inicio: quickTicket.fecha_solicitud,
       fecha_fin: quickTicket.fecha_termino,
-      descripcion: quickTicket.alcance_correo,
+      descripcion: quickDescription.trim(),
       sociedad: quickTicket.formato,
       tipo_atencion: `${quickTicket.tipo_atencion} - ${quickTicket.subcategoria_atencion}`,
       horas_invertidas: quickHours,
@@ -248,6 +256,16 @@ export function TicketsView({
     }
   }
 
+  async function closeExpired() {
+    try {
+      const result = await closeExpiredTickets();
+      setTicketMessage(`Tickets vencidos cerrados: ${result.updated}.`);
+      onChanged();
+    } catch (error) {
+      setTicketMessage(error instanceof Error ? error.message : "No se pudo cerrar tickets vencidos.");
+    }
+  }
+
   return (
     <section className="grid">
       <div className="section-head">
@@ -255,6 +273,7 @@ export function TicketsView({
           <h2>Tickets</h2>
           <p className="muted">Gestiona tickets y registra horas directamente desde cada ticket.</p>
         </div>
+        {isAdmin && <button className="secondary" type="button" onClick={closeExpired}>Cerrar tickets vencidos</button>}
       </div>
 
       <div className="segmented">
@@ -350,6 +369,10 @@ export function TicketsView({
                 </label>
                 <button type="button" onClick={saveQuickEntry}><Save size={16} /> Guardar horas</button>
               </div>
+              <label>
+                Descripcion
+                <textarea value={quickDescription} onChange={(event) => setQuickDescription(event.target.value)} placeholder="Detalle de las horas registradas..." />
+              </label>
               {quickMessage && <div className="notice">{quickMessage}</div>}
             </div>
           )}

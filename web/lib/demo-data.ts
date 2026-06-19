@@ -53,6 +53,9 @@ export const demoMasterData: MasterData = {
     { name: "Actividades Internas - Atenciones Urgentes", type: "Actividades Internas", classification: "Atenciones Urgentes" },
     { name: "Actividades Internas - Vacaciones", type: "Actividades Internas", classification: "Vacaciones" },
     { name: "Incidencia - Error del Sistema", type: "Incidencia", classification: "Error del Sistema" }
+  ],
+  attentionRules: [
+    { tipo_atencion: "Soporte", max_dias: 15 }
   ]
 };
 

@@ -14,9 +14,6 @@ const ticketPrefixes: Record<TicketAttentionType, string> = {
 
 const ticketTypes = Object.keys(ticketPrefixes) as TicketAttentionType[];
 const ticketStatuses = ["Cerrado", "Pendiente", "En Proceso", "Cancelado"];
-const maxDaysByType: Partial<Record<TicketAttentionType, number>> = {
-  Soporte: 15
-};
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -129,7 +126,12 @@ async function visibleResourcesForProfile(supabase: ReturnType<typeof adminClien
   return Array.from(visible);
 }
 
-function validateTicket(ticket: Ticket, responsables: string[], visibleResources: string[]) {
+async function loadMaxDaysByType(supabase: ReturnType<typeof adminClient>) {
+  const { data } = await supabase.from("attention_type_rules").select("tipo_atencion, max_dias").eq("active", true);
+  return Object.fromEntries((data ?? []).map((rule) => [rule.tipo_atencion, rule.max_dias])) as Record<string, number | null>;
+}
+
+function validateTicket(ticket: Ticket, responsables: string[], visibleResources: string[], maxDaysByType: Record<string, number | null>) {
   const required = [
     ticket.fecha_solicitud,
     ticket.sistema,
@@ -162,7 +164,7 @@ function validateTicket(ticket: Ticket, responsables: string[], visibleResources
     const start = new Date(`${ticket.fecha_solicitud}T00:00:00`);
     const end = new Date(`${ticket.fecha_termino}T00:00:00`);
     const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
-    if (days > maxDays) throw new Error(`${ticket.tipo_atencion} permite maximo ${maxDays} dias.`);
+    if (days > maxDays) throw new Error(`El tipo de atencion "${ticket.tipo_atencion}" permite maximo ${maxDays} dias.`);
   }
   if (!responsables.length) throw new Error("Selecciona al menos un responsable.");
   const invalidResources = responsables.filter((resource) => !visibleResources.includes(resource));
@@ -215,7 +217,8 @@ export async function POST(request: Request) {
     const { ticket } = (await request.json()) as { ticket: Ticket };
     const visibleResources = await visibleResourcesForProfile(supabase, profile);
     const responsables = cleanList(ticket.responsables?.length ? ticket.responsables : [profile.resource_name ?? ""]);
-    validateTicket(ticket, responsables, visibleResources);
+    const maxDaysByType = await loadMaxDaysByType(supabase);
+    validateTicket(ticket, responsables, visibleResources, maxDaysByType);
 
     const codigoTck = await nextCode(supabase, ticket.tipo_atencion);
     const row = {

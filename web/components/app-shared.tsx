@@ -19,9 +19,10 @@ export const ticketAttentionTypes: TicketAttentionType[] = [
 ];
 export const siNo = ["No", "Si"] as const;
 export const hourValidationMessage = "El valor debe ser mayor a 0 y menor a 8.";
-export const ticketMaxDaysByType: Partial<Record<TicketAttentionType, number>> = {
-  Soporte: 15
-};
+
+export function maxDaysForAttention(masters: MasterData, tipoAtencion: string) {
+  return masters.attentionRules.find((rule) => rule.tipo_atencion === tipoAtencion)?.max_dias ?? null;
+}
 
 export function today() {
   return new Date().toISOString().slice(0, 10);
@@ -269,10 +270,6 @@ export function TicketForm({
         <h3>Datos principales</h3>
         <div className="grid grid-4">
           <label>
-            Codigo TCK
-            <input value={ticket.codigo_tck || "Autogenerado"} disabled />
-          </label>
-          <label>
             Tipo de atencion
             <select value={ticket.tipo_atencion} onChange={(event) => onPatch({ tipo_atencion: event.target.value as Ticket["tipo_atencion"], subcategoria_atencion: "" })}>
               {(attentionTypes.length ? attentionTypes : ticketAttentionTypes).map((type) => <option key={type} value={type}>{type}</option>)}
@@ -317,9 +314,9 @@ export function TicketForm({
         <h3>Clasificacion y responsables</h3>
         <div className="ticket-form-grid">
           <SelectField label="Sistema" value={ticket.sistema} options={systemOptions} onChange={(value) => onPatch({ sistema: value })} />
-          <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} onChange={(value) => onPatch({ formato: value })} />
-          <SelectField label="Es un servicio de integracion?" value={ticket.en_servicio} options={siNo} onChange={(value) => onPatch({ en_servicio: value as "Si" | "No" })} />
           <SelectField label="Aplicativo se encuentra operativo" value={ticket.aplicativo_se_encuentra} options={siNo} onChange={(value) => onPatch({ aplicativo_se_encuentra: value as "Si" | "No" })} />
+          <SelectField label="Es un servicio de integracion?" value={ticket.en_servicio} options={siNo} onChange={(value) => onPatch({ en_servicio: value as "Si" | "No" })} />
+          <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} onChange={(value) => onPatch({ formato: value })} />
           <label>
             Responsables
             <div className="multi-select team-select">

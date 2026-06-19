@@ -81,12 +81,13 @@ export async function updatePassword(password: string): Promise<boolean> {
 
 export async function loadMasters(): Promise<MasterData> {
   if (hasSupabaseConfig && supabase) {
-    const [resources, reporters, companies, apps, attention] = await Promise.all([
+    const [resources, reporters, companies, apps, attention, attentionRules] = await Promise.all([
       supabase.from("resources").select("name").eq("active", true).order("name"),
       supabase.from("reporter_users").select("name").eq("active", true).order("name"),
       supabase.from("companies").select("name").eq("active", true).order("name"),
       supabase.from("applications").select("*").eq("active", true).order("name"),
-      supabase.from("attention_types").select("*").eq("active", true).order("name")
+      supabase.from("attention_types").select("*").eq("active", true).order("name"),
+      supabase.from("attention_type_rules").select("*").eq("active", true).order("tipo_atencion")
     ]);
     return {
       recursos: (resources.data ?? []).map((item) => item.name),
@@ -104,6 +105,10 @@ export async function loadMasters(): Promise<MasterData> {
         name: item.name,
         type: item.type ?? String(item.name ?? "").split(" - ")[0]?.trim() ?? "",
         classification: item.classification ?? String(item.name ?? "").split(" - ").slice(1).join(" - ").trim() ?? ""
+      })),
+      attentionRules: (attentionRules.data ?? []).map((item) => ({
+        tipo_atencion: item.tipo_atencion,
+        max_dias: item.max_dias ?? null
       }))
     };
   }
@@ -115,7 +120,8 @@ export async function loadMasters(): Promise<MasterData> {
       : localMasters.tiposAtencion.map((name) => {
           const [type, ...classification] = name.split(" - ");
           return { name, type: type.trim(), classification: classification.join(" - ").trim() };
-        })
+        }),
+    attentionRules: localMasters.attentionRules ?? [{ tipo_atencion: "Soporte", max_dias: 15 }]
   };
 }
 
@@ -328,6 +334,35 @@ export async function requestTicket(ticket: Ticket): Promise<Ticket[]> {
   const next = [requested, ...tickets];
   writeLocal(ticketsKey, next);
   return next;
+}
+
+export async function closeExpiredTickets(): Promise<{ updated: number }> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/admin/tickets", {
+      method: "PATCH",
+      headers: await authHeaders()
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo cerrar tickets vencidos.");
+    }
+
+    return response.json() as Promise<{ updated: number }>;
+  }
+
+  const tickets = readLocal(ticketsKey, demoTickets);
+  const todayDate = new Date().toISOString().slice(0, 10);
+  let updated = 0;
+  const next = tickets.map((ticket) => {
+    if (ticket.active && ticket.estado === "En Proceso" && ticket.fecha_termino < todayDate) {
+      updated += 1;
+      return { ...ticket, estado: "Cerrado" as const };
+    }
+    return ticket;
+  });
+  writeLocal(ticketsKey, next);
+  return { updated };
 }
 
 export async function saveEntry(entry: TimeEntry) {

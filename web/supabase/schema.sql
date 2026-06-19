@@ -44,6 +44,13 @@ create table public.attention_types (
   active boolean not null default true
 );
 
+create table public.attention_type_rules (
+  tipo_atencion text primary key,
+  max_dias integer check (max_dias is null or max_dias > 0),
+  active boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
 create table public.teams (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
@@ -128,6 +135,7 @@ alter table public.reporter_users enable row level security;
 alter table public.companies enable row level security;
 alter table public.applications enable row level security;
 alter table public.attention_types enable row level security;
+alter table public.attention_type_rules enable row level security;
 alter table public.teams enable row level security;
 alter table public.profile_teams enable row level security;
 alter table public.resource_teams enable row level security;
@@ -228,6 +236,7 @@ create policy "reporters read authenticated" on public.reporter_users for select
 create policy "companies read authenticated" on public.companies for select to authenticated using (true);
 create policy "apps read authenticated" on public.applications for select to authenticated using (true);
 create policy "attention read authenticated" on public.attention_types for select to authenticated using (true);
+create policy "attention rules read authenticated" on public.attention_type_rules for select to authenticated using (true);
 create policy "teams read admin" on public.teams for select using (public.is_admin());
 create policy "profile teams read admin" on public.profile_teams for select using (public.is_admin());
 create policy "resource teams read admin" on public.resource_teams for select using (public.is_admin());

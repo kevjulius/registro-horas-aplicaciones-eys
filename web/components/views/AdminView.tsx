@@ -5,7 +5,8 @@ import { Plus, Save, Trash2 } from "lucide-react";
 import { saveMasters, saveProfiles, saveTeams } from "@/lib/repository";
 import type { MasterData, Profile, Team } from "@/lib/types";
 
-type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle" | "tiposAtencionDetalle">;
+type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle" | "tiposAtencionDetalle" | "attentionRules">;
+type AdminMasterKey = MasterListKey | "attentionRules";
 
 const roleOptions: Profile["role"][] = [
   "trabajador_aplicaciones",
@@ -31,7 +32,7 @@ export function AdminView({
   const [localProfiles, setLocalProfiles] = useState(profiles);
   const [localTeams, setLocalTeams] = useState(teams);
   const [adminSection, setAdminSection] = useState<"maestras" | "usuarios" | "equipos">("maestras");
-  const [masterKey, setMasterKey] = useState<MasterListKey>("recursos");
+  const [masterKey, setMasterKey] = useState<AdminMasterKey>("recursos");
   const [newValue, setNewValue] = useState("");
   const [newApplication, setNewApplication] = useState({
     name: "",
@@ -67,6 +68,7 @@ export function AdminView({
   }, [teams]);
 
   async function addMaster() {
+    if (masterKey === "attentionRules") return;
     if (masterKey === "aplicaciones") {
       if (!newApplication.name.trim()) return;
       const nextDetail = {
@@ -104,6 +106,7 @@ export function AdminView({
   }
 
   async function deleteMasterValue(index: number) {
+    if (masterKey === "attentionRules") return;
     const updatedValues = localMasters[masterKey].filter((_, itemIndex) => itemIndex !== index);
     const updated = masterKey === "aplicaciones"
       ? {
@@ -116,6 +119,7 @@ export function AdminView({
   }
 
   function updateMasterValue(index: number, value: string) {
+    if (masterKey === "attentionRules") return;
     const next = [...localMasters[masterKey]];
     next[index] = value;
     if (masterKey === "aplicaciones") {
@@ -135,6 +139,19 @@ export function AdminView({
 
   function resetNewApplication() {
     setNewApplication({ name: "", company: "", service: "", fecha_creacion: "" });
+  }
+
+  function updateAttentionRule(tipoAtencion: string, value: string) {
+    const maxDias = value ? Number(value) : null;
+    const existing = localMasters.attentionRules.find((rule) => rule.tipo_atencion === tipoAtencion);
+    const next = existing
+      ? localMasters.attentionRules.map((rule) => rule.tipo_atencion === tipoAtencion ? { ...rule, max_dias: maxDias && maxDias > 0 ? maxDias : null } : rule)
+      : [...localMasters.attentionRules, { tipo_atencion: tipoAtencion, max_dias: maxDias && maxDias > 0 ? maxDias : null }];
+    setLocalMasters({ ...localMasters, attentionRules: next });
+  }
+
+  function ruleValue(tipoAtencion: string) {
+    return localMasters.attentionRules.find((rule) => rule.tipo_atencion === tipoAtencion)?.max_dias ?? "";
   }
 
   function resetNewUser() {
@@ -273,11 +290,12 @@ export function AdminView({
                 ["usuariosReporta", "Usuarios que reportan"],
                 ["aplicaciones", "Aplicativos"],
                 ["sociedades", "Sociedades"],
-                ["tiposAtencion", "Tipos de atencion"]
+                ["tiposAtencion", "Tipos de atencion"],
+                ["attentionRules", "Reglas de atencion"]
               ].map(([key, label]) => (
-                <button key={key} className={masterKey === key ? "active" : ""} onClick={() => { setAdminMessage(""); setNewValue(""); resetNewApplication(); setMasterKey(key as MasterListKey); }}>
+                <button key={key} className={masterKey === key ? "active" : ""} onClick={() => { setAdminMessage(""); setNewValue(""); resetNewApplication(); setMasterKey(key as AdminMasterKey); }}>
                   <span>{label}</span>
-                  <small>{localMasters[key as MasterListKey].length}</small>
+                  <small>{key === "attentionRules" ? localMasters.attentionRules.length : localMasters[key as MasterListKey].length}</small>
                 </button>
               ))}
             </div>
@@ -285,9 +303,11 @@ export function AdminView({
           <div className="card grid">
             <div className="section-head compact">
               <h3>{masterLabel(masterKey)}</h3>
-              <span className="pill">{localMasters[masterKey].length} valores</span>
+              <span className="pill">{masterKey === "attentionRules" ? localMasters.attentionRules.length : localMasters[masterKey].length} valores</span>
             </div>
-            {masterKey === "aplicaciones" ? (
+            {masterKey === "attentionRules" ? (
+              <div className="notice">Define el maximo de dias permitidos por tipo de atencion. Deja vacio si no tiene limite.</div>
+            ) : masterKey === "aplicaciones" ? (
               <div className="app-create-panel">
                 <label>
                   Aplicativo
@@ -317,7 +337,23 @@ export function AdminView({
               </div>
             )}
             {adminMessage && <pre className="notice">{adminMessage}</pre>}
-            {masterKey === "aplicaciones" ? (
+            {masterKey === "attentionRules" ? (
+              <div className="master-values">
+                {Array.from(new Set(localMasters.tiposAtencionDetalle.map((item) => item.type).filter(Boolean))).map((tipoAtencion) => (
+                  <div className="master-row" key={tipoAtencion}>
+                    <input value={tipoAtencion} disabled />
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={ruleValue(tipoAtencion)}
+                      onChange={(event) => updateAttentionRule(tipoAtencion, event.target.value)}
+                      placeholder="Sin limite"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : masterKey === "aplicaciones" ? (
               <div className="master-values app-master-values">
                 <div className="app-master-header">
                   <span>Aplicativo</span>
@@ -520,12 +556,13 @@ export function AdminView({
   );
 }
 
-function masterLabel(key: MasterListKey) {
+function masterLabel(key: AdminMasterKey) {
   return {
     recursos: "Recursos",
     usuariosReporta: "Usuarios que reportan",
     aplicaciones: "Aplicativos",
     sociedades: "Sociedades",
-    tiposAtencion: "Tipos de atencion"
+    tiposAtencion: "Tipos de atencion",
+    attentionRules: "Reglas de atencion"
   }[key];
 }

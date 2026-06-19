@@ -17,6 +17,7 @@ export type MasterData = {
   sociedades: string[];
   tiposAtencion: string[];
   tiposAtencionDetalle: AttentionMaster[];
+  attentionRules: AttentionRule[];
 };
 
 export type BiMasterData = {
@@ -62,6 +63,11 @@ export type AttentionMaster = {
   name: string;
   type: string;
   classification: string;
+};
+
+export type AttentionRule = {
+  tipo_atencion: string;
+  max_dias: number | null;
 };
 
 export type Team = {

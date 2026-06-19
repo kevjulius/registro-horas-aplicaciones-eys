@@ -53,3 +53,22 @@ $$;
 
 drop policy if exists "team applications read admin" on public.team_applications;
 create policy "team applications read admin" on public.team_applications for select using (public.is_admin());
+
+create table if not exists public.attention_type_rules (
+  tipo_atencion text primary key,
+  max_dias integer check (max_dias is null or max_dias > 0),
+  active boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.attention_type_rules (tipo_atencion, max_dias, active)
+values ('Soporte', 15, true)
+on conflict (tipo_atencion) do update
+set max_dias = excluded.max_dias,
+    active = excluded.active,
+    updated_at = now();
+
+alter table public.attention_type_rules enable row level security;
+
+drop policy if exists "attention rules read authenticated" on public.attention_type_rules;
+create policy "attention rules read authenticated" on public.attention_type_rules for select to authenticated using (true);

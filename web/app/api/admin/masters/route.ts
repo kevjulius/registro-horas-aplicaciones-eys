@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { MasterData, Profile } from "@/lib/types";
 
-type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle" | "tiposAtencionDetalle">;
+type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle" | "tiposAtencionDetalle" | "attentionRules">;
 
 const masterTables: Record<MasterListKey, string> = {
   recursos: "resources",
@@ -51,12 +51,13 @@ function uniqueClean(values: string[]) {
 }
 
 async function readMasters(supabase: ReturnType<typeof adminClient>): Promise<MasterData> {
-  const [resources, reporters, companies, apps, attention] = await Promise.all([
+  const [resources, reporters, companies, apps, attention, attentionRules] = await Promise.all([
     supabase.from("resources").select("name").eq("active", true).order("name"),
     supabase.from("reporter_users").select("name").eq("active", true).order("name"),
     supabase.from("companies").select("name").eq("active", true).order("name"),
     supabase.from("applications").select("*").eq("active", true).order("name"),
-    supabase.from("attention_types").select("*").eq("active", true).order("name")
+    supabase.from("attention_types").select("*").eq("active", true).order("name"),
+    supabase.from("attention_type_rules").select("*").eq("active", true).order("tipo_atencion")
   ]);
 
   return {
@@ -75,6 +76,10 @@ async function readMasters(supabase: ReturnType<typeof adminClient>): Promise<Ma
       name: item.name,
       type: item.type ?? String(item.name ?? "").split(" - ")[0]?.trim() ?? "",
       classification: item.classification ?? String(item.name ?? "").split(" - ").slice(1).join(" - ").trim() ?? ""
+    })),
+    attentionRules: (attentionRules.data ?? []).map((item) => ({
+      tipo_atencion: item.tipo_atencion,
+      max_dias: item.max_dias ?? null
     }))
   };
 }
@@ -118,6 +123,27 @@ export async function PUT(request: Request) {
         const { error } = await supabase.from(table).update({ active: false }).eq("name", name);
         if (error) throw error;
       }
+    }
+
+    const ruleRows = (masters.attentionRules ?? [])
+      .filter((rule) => rule.tipo_atencion.trim())
+      .map((rule) => ({
+        tipo_atencion: rule.tipo_atencion.trim(),
+        max_dias: rule.max_dias && rule.max_dias > 0 ? rule.max_dias : null,
+        active: true
+      }));
+    if (ruleRows.length) {
+      const { error } = await supabase.from("attention_type_rules").upsert(ruleRows, { onConflict: "tipo_atencion" });
+      if (error) throw error;
+    }
+
+    const activeRuleTypes = new Set(ruleRows.map((rule) => rule.tipo_atencion));
+    const { data: existingRules, error: existingRulesError } = await supabase.from("attention_type_rules").select("tipo_atencion");
+    if (existingRulesError) throw existingRulesError;
+    const rulesToDeactivate = (existingRules ?? []).map((item) => item.tipo_atencion).filter((name) => !activeRuleTypes.has(name));
+    for (const tipoAtencion of rulesToDeactivate) {
+      const { error } = await supabase.from("attention_type_rules").update({ active: false }).eq("tipo_atencion", tipoAtencion);
+      if (error) throw error;
     }
 
     return NextResponse.json({ masters: await readMasters(supabase) });

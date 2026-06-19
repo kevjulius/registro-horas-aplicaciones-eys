@@ -16,9 +16,6 @@ const ticketTypes = Object.keys(ticketPrefixes) as TicketAttentionType[];
 const ticketStatuses = ["Cerrado", "Pendiente", "En Proceso", "Cancelado"];
 const approvalStatuses = ["Pendiente", "Aprobado", "Rechazado"];
 const workTypes = ["Personal", "Grupal"];
-const maxDaysByType: Partial<Record<TicketAttentionType, number>> = {
-  Soporte: 15
-};
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -102,7 +99,12 @@ async function nextCode(supabase: ReturnType<typeof adminClient>, type: TicketAt
   return candidate;
 }
 
-function validateTicket(ticket: Ticket) {
+async function loadMaxDaysByType(supabase: ReturnType<typeof adminClient>) {
+  const { data } = await supabase.from("attention_type_rules").select("tipo_atencion, max_dias").eq("active", true);
+  return Object.fromEntries((data ?? []).map((rule) => [rule.tipo_atencion, rule.max_dias])) as Record<string, number | null>;
+}
+
+function validateTicket(ticket: Ticket, maxDaysByType: Record<string, number | null>) {
   const required = [
     ticket.fecha_solicitud,
     ticket.sistema,
@@ -136,7 +138,7 @@ function validateTicket(ticket: Ticket) {
     const start = new Date(`${ticket.fecha_solicitud}T00:00:00`);
     const end = new Date(`${ticket.fecha_termino}T00:00:00`);
     const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
-    if (days > maxDays) throw new Error(`${ticket.tipo_atencion} permite maximo ${maxDays} dias.`);
+    if (days > maxDays) throw new Error(`El tipo de atencion "${ticket.tipo_atencion}" permite maximo ${maxDays} dias.`);
   }
   if (!approvalStatuses.includes(ticket.approval_status)) throw new Error(`Aprobacion invalida: ${ticket.approval_status}`);
   if (!workTypes.includes(ticket.tipo_tck)) throw new Error(`Tipo de ticket invalido: ${ticket.tipo_tck}`);
@@ -200,6 +202,27 @@ export async function GET(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    const supabase = adminClient();
+    await requireAdmin(request, supabase);
+    const { data, error } = await supabase
+      .from("tickets")
+      .update({ estado: "Cerrado", updated_at: new Date().toISOString() })
+      .eq("active", true)
+      .eq("estado", "En Proceso")
+      .lt("fecha_termino", new Date().toISOString().slice(0, 10))
+      .select("id");
+    if (error) throw error;
+    return NextResponse.json({ updated: data?.length ?? 0 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error, "No se pudo cerrar tickets vencidos.") },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = adminClient();
@@ -224,7 +247,8 @@ export async function POST(request: Request) {
         active: ticket.active !== false
       }));
 
-    cleanTickets.filter((ticket) => ticket.active).forEach(validateTicket);
+    const maxDaysByType = await loadMaxDaysByType(supabase);
+    cleanTickets.filter((ticket) => ticket.active).forEach((ticket) => validateTicket(ticket, maxDaysByType));
 
     const usedCodes = new Set(cleanTickets.map((ticket) => ticket.codigo_tck).filter(Boolean));
 
