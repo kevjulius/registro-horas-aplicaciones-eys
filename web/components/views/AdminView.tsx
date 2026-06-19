@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import { saveMasters, saveProfiles, saveTeams } from "@/lib/repository";
 import type { MasterData, Profile, Team } from "@/lib/types";
 
 type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle">;
+
+const roleOptions: Profile["role"][] = [
+  "trabajador_aplicaciones",
+  "trabajador_bi",
+  "adminbi",
+  "administracion"
+];
 
 export function AdminView({
   currentUser,
@@ -161,6 +168,32 @@ export function AdminView({
       onChanged();
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "No se pudo crear el usuario.");
+    }
+  }
+
+  function patchProfile(index: number, values: Partial<Profile>) {
+    setLocalProfiles((current) => {
+      const next = [...current];
+      next[index] = { ...next[index], ...values };
+      return next;
+    });
+  }
+
+  async function persistProfile(profile: Profile) {
+    try {
+      if (!profile.email.trim() || !profile.display_name.trim()) {
+        setAdminMessage("Completa correo y nombre antes de guardar el usuario.");
+        return;
+      }
+      const result = await saveProfiles([profile]);
+      const saved = result.profiles[0];
+      if (saved) {
+        setLocalProfiles((current) => current.map((item) => (item.id === saved.id ? saved : item)));
+      }
+      setAdminMessage("Usuario actualizado.");
+      onChanged();
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "No se pudo actualizar el usuario.");
     }
   }
 
@@ -349,10 +382,7 @@ export function AdminView({
               <label>
                 Rol
                 <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as Profile["role"] })}>
-                  <option value="trabajador_aplicaciones">trabajador_aplicaciones</option>
-                  <option value="trabajador_bi">trabajador_bi</option>
-                  <option value="adminbi">adminbi</option>
-                  <option value="administracion">administracion</option>
+                  {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
                 </select>
               </label>
               <label>
@@ -381,15 +411,40 @@ export function AdminView({
               <span className="pill">{localProfiles.length} usuarios</span>
             </div>
             <table>
-              <thead><tr><th>Correo</th><th>Nombre</th><th>Rol</th><th>Recurso</th><th>Estado</th></tr></thead>
+              <thead><tr><th>Correo</th><th>Nombre</th><th>Rol</th><th>Recurso</th><th>Estado</th><th></th></tr></thead>
               <tbody>
-                {localProfiles.map((user) => (
+                {localProfiles.map((user, index) => (
                   <tr key={user.id}>
-                    <td>{user.email}{user.id === currentUser.id ? <span className="self-tag">Tu usuario</span> : null}</td>
-                    <td>{user.display_name}</td>
-                    <td>{user.role}</td>
-                    <td>{user.resource_name ?? "-"}</td>
-                    <td><span className={`status ${user.active ? "closed" : "progress"}`}>{user.active ? "Activo" : "Inactivo"}</span></td>
+                    <td>
+                      <input value={user.email} onChange={(event) => patchProfile(index, { email: event.target.value })} />
+                      {user.id === currentUser.id ? <span className="self-tag">Tu usuario</span> : null}
+                    </td>
+                    <td>
+                      <input value={user.display_name} onChange={(event) => patchProfile(index, { display_name: event.target.value })} />
+                    </td>
+                    <td>
+                      <select value={user.role} onChange={(event) => patchProfile(index, { role: event.target.value as Profile["role"] })}>
+                        {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
+                        {user.role === "trabajador" && <option value="trabajador">trabajador</option>}
+                      </select>
+                    </td>
+                    <td>
+                      <select value={user.resource_name ?? ""} onChange={(event) => patchProfile(index, { resource_name: event.target.value || null })}>
+                        <option value="">Sin recurso</option>
+                        {masters.recursos.map((resource) => <option key={resource} value={resource}>{resource}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <select value={user.active ? "Si" : "No"} onChange={(event) => patchProfile(index, { active: event.target.value === "Si" })}>
+                        <option>Si</option>
+                        <option>No</option>
+                      </select>
+                    </td>
+                    <td>
+                      <button className="secondary icon-button" type="button" title="Guardar usuario" onClick={() => persistProfile(user)}>
+                        <Save size={16} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
