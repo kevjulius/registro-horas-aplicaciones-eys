@@ -61,11 +61,14 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
   const [toDate, setToDate] = useState("");
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editMessage, setEditMessage] = useState("");
+  const [listMessage, setListMessage] = useState("");
+  const [focusedEntryId, setFocusedEntryId] = useState("");
   const approvedTickets = useMemo(() => tickets.filter((ticket) => ticket.approval_status === "Aprobado"), [tickets]);
 
   const resources = useMemo(() => Array.from(new Set(entries.map((entry) => entry.recurso))).sort(), [entries]);
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
+      if (focusedEntryId && entry.id !== focusedEntryId) return false;
       if (resourceFilter !== "Todos" && entry.recurso !== resourceFilter) return false;
       if (statusFilter !== "Todos" && entry.estado_tck !== statusFilter) return false;
       if (codeFilter && !entry.codigo_tck.toLowerCase().includes(codeFilter.toLowerCase())) return false;
@@ -73,11 +76,23 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
       if (toDate && entry.fecha_reporte > toDate) return false;
       return true;
     });
-  }, [entries, resourceFilter, statusFilter, codeFilter, fromDate, toDate]);
+  }, [entries, resourceFilter, statusFilter, codeFilter, fromDate, toDate, focusedEntryId]);
 
   async function remove(id: string) {
-    await deleteEntry(id);
-    onChanged();
+    try {
+      await deleteEntry(id);
+      setListMessage("Registro eliminado correctamente.");
+      if (editingEntry?.id === id) {
+        setEditingEntry(null);
+        setEditMessage("");
+      }
+      if (focusedEntryId === id) {
+        setFocusedEntryId("");
+      }
+      onChanged();
+    } catch (error) {
+      setListMessage(error instanceof Error ? error.message : "No se pudo eliminar el registro.");
+    }
   }
 
   function clearFilters() {
@@ -86,6 +101,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
     setCodeFilter("");
     setFromDate("");
     setToDate("");
+    setFocusedEntryId("");
   }
 
   function patchEditing(values: Partial<TimeEntry>) {
@@ -122,6 +138,8 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
     });
     setEditingEntry(null);
     setEditMessage("");
+    setFocusedEntryId("");
+    setListMessage("Registro actualizado correctamente.");
     onChanged();
   }
 
@@ -144,6 +162,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
         </div>
       </div>
       <div className="card grid">
+        {listMessage && <div className="notice">{listMessage}</div>}
         <div className="grid grid-5 filters">
           <SelectField label="Recurso" value={resourceFilter} options={["Todos", ...resources]} onChange={setResourceFilter} />
           <SelectField label="Estado" value={statusFilter} options={["Todos", ...estados]} onChange={setStatusFilter} />
@@ -171,7 +190,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
               <h3>Editar atencion</h3>
               <p className="muted">{editingEntry.codigo_tck}</p>
             </div>
-            <button className="secondary icon-button" type="button" onClick={() => { setEditingEntry(null); setEditMessage(""); }} title="Cerrar edicion">
+            <button className="secondary icon-button" type="button" onClick={() => { setEditingEntry(null); setEditMessage(""); setFocusedEntryId(""); }} title="Cerrar edicion">
               <X size={16} />
             </button>
           </div>
@@ -224,7 +243,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
                 ))}
                 <td>
                   <div className="row-actions">
-                    <button className="secondary icon-button" onClick={() => { setEditingEntry(entry); setEditMessage(""); }} title="Editar atencion">
+                    <button className="secondary icon-button" onClick={() => { setEditingEntry(entry); setEditMessage(""); setListMessage(""); setFocusedEntryId(entry.id); }} title="Editar atencion">
                       <Pencil size={16} />
                     </button>
                     <button className="secondary icon-button" onClick={() => remove(entry.id)} title="Eliminar atencion">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Save, Search } from "lucide-react";
+import { Download, Save, Search } from "lucide-react";
 import { SelectField, clearHourValidation, hourValidationMessage, showHourValidation, today } from "@/components/app-shared";
 import { saveBiEntry } from "@/lib/repository";
 import type { BiEntry, BiMasterData, Profile } from "@/lib/types";
@@ -38,13 +38,16 @@ export function BiView({
   const [entry, setEntry] = useState<BiEntry>(() => emptyBiEntry(profile, masters));
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
+  const [resourceFilter, setResourceFilter] = useState("Todos");
+  const [stateFilter, setStateFilter] = useState("Todos");
+  const [serviceFilter, setServiceFilter] = useState("Todos");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [view, setView] = useState<"registro" | "listado">("registro");
 
   const filteredEntries = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return entries;
     return entries.filter((item) => [
-      item.correlativo,
       item.asignado_a,
       item.formato,
       item.solicitado_por,
@@ -52,8 +55,54 @@ export function BiView({
       item.tipo_atencion,
       item.estado,
       item.descripcion
-    ].join(" ").toLowerCase().includes(term));
-  }, [entries, search]);
+    ].join(" ").toLowerCase().includes(term)
+      && (resourceFilter === "Todos" || item.asignado_a === resourceFilter)
+      && (stateFilter === "Todos" || item.estado === stateFilter)
+      && (serviceFilter === "Todos" || item.servicio === serviceFilter)
+      && (!fromDate || item.fecha_inicio >= fromDate)
+      && (!toDate || item.fecha_inicio <= toDate));
+  }, [entries, fromDate, resourceFilter, search, serviceFilter, stateFilter, toDate]);
+
+  function csvValue(value: string | number | boolean | null | undefined) {
+    return String(value ?? "").replace(/[\r\n]+/g, " ").replace(/;/g, ",").trim();
+  }
+
+  function exportCsv() {
+    const headers: Array<{ key: keyof BiEntry; label: string }> = [
+      { key: "asignado_a", label: "Asignado a" },
+      { key: "formato", label: "Formato" },
+      { key: "solicitado_por", label: "Solicitado por" },
+      { key: "servicio", label: "Servicio" },
+      { key: "tipo_atencion", label: "Tipo atencion" },
+      { key: "estado", label: "Estado" },
+      { key: "fecha_inicio", label: "Fecha inicio" },
+      { key: "fecha_fin", label: "Fecha fin" },
+      { key: "esfuerzo_horas", label: "Horas" },
+      { key: "descripcion", label: "Descripcion" }
+    ];
+    const rows = [
+      headers.map((header) => csvValue(header.label)).join(";"),
+      ...filteredEntries.map((item) => headers.map((header) => csvValue(item[header.key])).join(";"))
+    ];
+    const blob = new Blob([`\uFEFF${rows.join("\r\n")}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `registros_bi_${today()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setResourceFilter("Todos");
+    setStateFilter("Todos");
+    setServiceFilter("Todos");
+    setFromDate("");
+    setToDate("");
+  }
 
   function patch(values: Partial<BiEntry>) {
     setEntry((current) => ({ ...current, ...values }));
@@ -114,11 +163,7 @@ export function BiView({
           </div>
           <div className="form-band">
             <h3>Datos generales</h3>
-            <div className="grid grid-3">
-              <label>
-                Correlativo
-                <input value={entry.correlativo || "Autogenerado"} disabled />
-              </label>
+            <div className="grid grid-2">
               <SelectField label="Asignado a" value={entry.asignado_a} options={masters.recursos} disabled={profile.role === "trabajador_bi"} onChange={(value) => patch({ asignado_a: value })} />
               <SelectField label="Formato" value={entry.formato} options={masters.formatos} onChange={(value) => patch({ formato: value })} />
             </div>
@@ -169,18 +214,39 @@ export function BiView({
       )}
 
       {view === "listado" && (
-        <div className="card table-card">
-          <label>
-            Buscar
-            <div className="input-with-icon">
-              <Search size={16} />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Correlativo, recurso, servicio..." />
+        <div className="grid">
+          <div className="card grid">
+            <div className="grid grid-6 filters">
+              <label>
+                Buscar
+                <div className="input-with-icon">
+                  <Search size={16} />
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Recurso, servicio, descripcion..." />
+                </div>
+              </label>
+              <SelectField label="Asignado a" value={resourceFilter} options={["Todos", ...masters.recursos]} onChange={setResourceFilter} />
+              <SelectField label="Estado" value={stateFilter} options={["Todos", ...masters.estados]} onChange={setStateFilter} />
+              <SelectField label="Servicio" value={serviceFilter} options={["Todos", ...masters.servicios]} onChange={setServiceFilter} />
+              <label>
+                Desde
+                <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+              </label>
+              <label>
+                Hasta
+                <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+              </label>
             </div>
-          </label>
-          <table>
+            <div className="toolbar">
+              <span className="pill">Registros: {filteredEntries.length}</span>
+              <span className="pill muted-pill">Horas: {filteredEntries.reduce((sum, item) => sum + Number(item.esfuerzo_horas), 0)}</span>
+              <button className="secondary" type="button" disabled={!filteredEntries.length} onClick={exportCsv}><Download size={16} /> Exportar CSV</button>
+              <button className="secondary" type="button" onClick={clearFilters}>Limpiar filtros</button>
+            </div>
+          </div>
+          <div className="card table-card">
+            <table>
             <thead>
               <tr>
-                <th>Correlativo</th>
                 <th>Asignado a</th>
                 <th>Formato</th>
                 <th>Solicitado por</th>
@@ -196,7 +262,6 @@ export function BiView({
             <tbody>
               {filteredEntries.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.correlativo}</td>
                   <td>{item.asignado_a}</td>
                   <td>{item.formato}</td>
                   <td>{item.solicitado_por}</td>
@@ -212,6 +277,7 @@ export function BiView({
             </tbody>
           </table>
           {filteredEntries.length === 0 && <p className="muted">No hay registros BI.</p>}
+          </div>
         </div>
       )}
     </section>
