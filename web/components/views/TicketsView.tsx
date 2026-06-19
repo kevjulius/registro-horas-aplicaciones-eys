@@ -212,6 +212,7 @@ export function TicketsView({
           submitLabel={isAdmin ? "Crear ticket" : "Enviar solicitud"}
           onSubmit={() => persistTicket(draftTicket, isAdmin ? "Ticket creado." : "Solicitud enviada para aprobacion.")}
           canEditApproval={isAdmin}
+          showReceptionDate={false}
           resourceOptions={responsibleOptions}
         />
       )}
@@ -253,6 +254,7 @@ export function TicketsView({
               onSubmit={() => persistTicket(editingTicket, "Ticket actualizado.")}
               onClose={() => setEditingTicket(null)}
               canEditApproval
+              showReceptionDate
               resourceOptions={responsibleOptions}
             />
           )}

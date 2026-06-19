@@ -79,7 +79,7 @@ export function ticketMatchesEntry(ticket: Ticket, entry: TimeEntry, profile: Pr
   if (ticket.codigo_tck.toUpperCase() !== entry.codigo_tck.trim().toUpperCase()) return false;
   if (ticket.approval_status !== "Aprobado") return false;
   if (!ticketMatchesReportPeriod(ticket, entry.fecha_reporte)) return false;
-  if (profile.role === "trabajador" && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
+  if (["trabajador", "trabajador_aplicaciones"].includes(profile.role) && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
   return true;
 }
 
@@ -215,6 +215,7 @@ export function TicketForm({
   onClose,
   canEditApproval = false,
   responsibilitiesDisabled = false,
+  showReceptionDate = true,
   resourceOptions
 }: {
   ticket: Ticket;
@@ -226,10 +227,10 @@ export function TicketForm({
   onClose?: () => void;
   canEditApproval?: boolean;
   responsibilitiesDisabled?: boolean;
+  showReceptionDate?: boolean;
   resourceOptions?: string[];
 }) {
   const responsibleOptions = resourceOptions ?? masters.recursos;
-  const isNewTicket = !ticket.codigo_tck || ticket.id.startsWith("new-");
 
   return (
     <div className="card grid ticket-form-card">
@@ -292,7 +293,7 @@ export function TicketForm({
             Fecha solicitud
             <input type="date" value={ticket.fecha_solicitud} onChange={(event) => onPatch({ fecha_solicitud: event.target.value })} />
           </label>
-          {!isNewTicket && (
+          {showReceptionDate && (
             <label>
               Fecha recepcion
               <input type="date" value={ticket.fecha_recepcion} onChange={(event) => onPatch({ fecha_recepcion: event.target.value })} />

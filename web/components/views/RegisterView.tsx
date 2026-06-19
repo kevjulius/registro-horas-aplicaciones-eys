@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Save } from "lucide-react";
 import {
   clearHourValidation,
@@ -41,6 +41,22 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
         : {})
     });
   }
+
+  useEffect(() => {
+    const selectedTicket = approvedTickets.find((ticket) => ticket.codigo_tck.toUpperCase() === entry.codigo_tck.trim().toUpperCase());
+    if (!selectedTicket) return;
+    if (
+      entry.aplicativo === selectedTicket.sistema
+      && entry.sociedad === selectedTicket.formato
+      && entry.usuario_reporta === selectedTicket.usuario_solicitante
+    ) return;
+    setEntry((current) => ({
+      ...current,
+      aplicativo: selectedTicket.sistema,
+      sociedad: selectedTicket.formato,
+      usuario_reporta: selectedTicket.usuario_solicitante
+    }));
+  }, [approvedTickets, entry.aplicativo, entry.codigo_tck, entry.sociedad, entry.usuario_reporta]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
