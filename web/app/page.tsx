@@ -185,7 +185,8 @@ export default function Home() {
     return (
       <main className="login-shell">
         <form className="card login-card" onSubmit={handlePasswordUpdate}>
-          <h1>EyS Aplicaciones</h1>
+          <h1>EyS Bitacora</h1>
+          <p className="muted">Registro de horas y atenciones</p>
           <p className="muted">Define una nueva clave para continuar.</p>
           <label>
             Nueva clave
@@ -206,7 +207,8 @@ export default function Home() {
     return (
       <main className="login-shell">
         <form className="card login-card" onSubmit={handleLogin}>
-          <h1>EyS Aplicaciones</h1>
+          <h1>EyS Bitacora</h1>
+          <p className="muted">Registro de horas y atenciones</p>
           <p className="muted">Ingresa con tu correo para continuar.</p>
           <label>
             Correo
@@ -228,7 +230,10 @@ export default function Home() {
       <aside className="sidebar">
         <div className="app-brand">
           <span className="app-mark">E</span>
-          <strong>EyS Aplicaciones</strong>
+          <div>
+            <strong>EyS Bitacora</strong>
+            <small>Registro de horas y atenciones</small>
+          </div>
         </div>
         <div className="session">
           <div className="session-avatar">
@@ -263,7 +268,10 @@ export default function Home() {
         </button>
       </aside>
       <section className="main">
-        <h1>EyS Aplicaciones</h1>
+        <div className="page-title">
+          <h1>EyS Bitacora</h1>
+          <p className="muted">Registro de horas y atenciones</p>
+        </div>
         {page === "registrar" && masters && <RegisterView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
         {page === "carga" && masters && <BulkUploadView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
         {page === "listado" && masters && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
