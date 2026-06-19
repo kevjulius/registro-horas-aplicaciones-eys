@@ -5,9 +5,10 @@ import { Plus, Trash2 } from "lucide-react";
 import { saveBiMasters } from "@/lib/repository";
 import type { BiMasterData } from "@/lib/types";
 
-type BiMasterKey = "servicios" | "atenciones" | "estados" | "formatos";
+type BiMasterKey = "recursos" | "servicios" | "atenciones" | "estados" | "formatos";
 
 const masterLabels: Record<BiMasterKey, string> = {
+  recursos: "Recursos",
   servicios: "Servicios",
   atenciones: "Atenciones",
   estados: "Estados",

@@ -26,7 +26,7 @@ function uniqueClean(values: string[]) {
 
 async function readMasters(supabase: ReturnType<typeof adminClient>): Promise<BiMasterData> {
   const [resources, services, attentions, states, formats] = await Promise.all([
-    supabase.from("resources").select("name").eq("active", true).order("name"),
+    supabase.from("bi_resources").select("name").eq("active", true).order("name"),
     supabase.from("bi_services").select("name").eq("active", true).order("name"),
     supabase.from("bi_attention_types").select("name, code").eq("active", true).order("name"),
     supabase.from("bi_states").select("name").eq("active", true).order("name"),
@@ -59,7 +59,8 @@ export async function PUT(request: Request) {
     if (!["adminbi", "administracion"].includes(profile.role)) throw new Error("Solo admin BI puede modificar maestras BI.");
     const { masters } = (await request.json()) as { masters: BiMasterData };
 
-    const simpleTables: Array<[keyof Pick<BiMasterData, "servicios" | "estados" | "formatos">, string]> = [
+    const simpleTables: Array<[keyof Pick<BiMasterData, "recursos" | "servicios" | "estados" | "formatos">, string]> = [
+      ["recursos", "bi_resources"],
       ["servicios", "bi_services"],
       ["estados", "bi_states"],
       ["formatos", "bi_formats"]

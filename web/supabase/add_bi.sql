@@ -11,6 +11,11 @@ create table if not exists public.bi_services (
   active boolean not null default true
 );
 
+create table if not exists public.bi_resources (
+  name text primary key references public.resources(name) on update cascade on delete restrict,
+  active boolean not null default true
+);
+
 create table if not exists public.bi_attention_types (
   name text primary key,
   code text not null,
@@ -52,6 +57,12 @@ insert into public.bi_services (name, active) values
   ('Soporte BI', true)
 on conflict (name) do update set active = excluded.active;
 
+insert into public.bi_resources (name, active)
+select name, true
+from public.resources
+where active = true
+on conflict (name) do update set active = excluded.active;
+
 insert into public.bi_attention_types (name, code, active) values
   ('Soporte', 'SOP', true),
   ('Proyecto', 'PRO', true),
@@ -73,6 +84,7 @@ insert into public.bi_formats (name, active) values
 on conflict (name) do update set active = excluded.active;
 
 alter table public.bi_services enable row level security;
+alter table public.bi_resources enable row level security;
 alter table public.bi_attention_types enable row level security;
 alter table public.bi_states enable row level security;
 alter table public.bi_formats enable row level security;
@@ -99,12 +111,14 @@ as $$
 $$;
 
 drop policy if exists "bi services read bi" on public.bi_services;
+drop policy if exists "bi resources read bi" on public.bi_resources;
 drop policy if exists "bi attentions read bi" on public.bi_attention_types;
 drop policy if exists "bi states read bi" on public.bi_states;
 drop policy if exists "bi formats read bi" on public.bi_formats;
 drop policy if exists "bi entries read own or admin" on public.bi_entries;
 
 create policy "bi services read bi" on public.bi_services for select using (public.current_profile_is_bi());
+create policy "bi resources read bi" on public.bi_resources for select using (public.current_profile_is_bi());
 create policy "bi attentions read bi" on public.bi_attention_types for select using (public.current_profile_is_bi());
 create policy "bi states read bi" on public.bi_states for select using (public.current_profile_is_bi());
 create policy "bi formats read bi" on public.bi_formats for select using (public.current_profile_is_bi());
