@@ -546,6 +546,10 @@ section.grid > button:not(.icon-button) {
   align-items: center;
 }
 
+.master-row.rule-row {
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 220px);
+}
+
 .row-actions {
   display: flex;
   gap: 8px;

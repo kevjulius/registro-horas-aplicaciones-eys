@@ -340,7 +340,7 @@ export function AdminView({
             {masterKey === "attentionRules" ? (
               <div className="master-values">
                 {Array.from(new Set(localMasters.tiposAtencionDetalle.map((item) => item.type).filter(Boolean))).map((tipoAtencion) => (
-                  <div className="master-row" key={tipoAtencion}>
+                  <div className="master-row rule-row" key={tipoAtencion}>
                     <input value={tipoAtencion} disabled />
                     <input
                       type="number"

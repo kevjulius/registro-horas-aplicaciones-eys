@@ -250,6 +250,8 @@ export function TicketsView({
       await saveEntry(entry);
       setQuickMessage("Horas registradas con exito.");
       setQuickHours(0);
+      setQuickDescription("");
+      setQuickTicket(null);
       onChanged();
     } catch (error) {
       setQuickMessage(error instanceof Error ? error.message : "No se pudo registrar horas.");
