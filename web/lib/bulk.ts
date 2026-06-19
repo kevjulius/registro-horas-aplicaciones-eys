@@ -14,11 +14,20 @@ export const bulkHeaders = [
   "tipo_atencion",
   "horas_invertidas",
   "estado_tck",
-  "en_servicio",
-  "aplicativo_se_encuentra"
+  "servicio_integracion",
+  "aplicativo_activo"
 ];
 
 const required = bulkHeaders.filter((header) => !["fecha_fin", "descripcion"].includes(header));
+
+const headerAliases: Record<string, string> = {
+  en_servicio: "servicio_integracion",
+  aplicativo_se_encuentra: "aplicativo_activo"
+};
+
+function normalizeHeader(header: string) {
+  return headerAliases[header] ?? header;
+}
 
 function splitLine(line: string) {
   if (line.includes("\t")) return line.split("\t");
@@ -40,7 +49,7 @@ export function parseBulkText(text: string, masters: MasterData, tickets: Ticket
   const lines = text.trim().split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) return { records: [] as TimeEntry[], errors: ["Pega encabezados y al menos una fila."] };
 
-  const headers = splitLine(lines[0]).map((item) => item.trim());
+  const headers = splitLine(lines[0]).map((item) => normalizeHeader(item.trim()));
   const missing = required.filter((col) => !headers.includes(col));
   if (missing.length) return { records: [] as TimeEntry[], errors: [`Faltan columnas: ${missing.join(", ")}`] };
 
@@ -80,8 +89,8 @@ export function parseBulkText(text: string, masters: MasterData, tickets: Ticket
     if (!horas || horas <= 0) rowErrors.push("horas_invertidas debe ser mayor a cero");
     if (horas > 8) rowErrors.push("horas_invertidas no puede ser mayor a 8");
     if (!["En Proceso", "Cerrado", "Pendiente"].includes(row.estado_tck)) rowErrors.push(`estado_tck invalido: ${row.estado_tck}`);
-    if (!["Si", "No"].includes(row.en_servicio)) rowErrors.push(`en_servicio invalido: ${row.en_servicio}`);
-    if (!["Si", "No"].includes(row.aplicativo_se_encuentra)) rowErrors.push(`aplicativo_se_encuentra invalido: ${row.aplicativo_se_encuentra}`);
+    if (!["Si", "No"].includes(row.servicio_integracion)) rowErrors.push(`servicio_integracion invalido: ${row.servicio_integracion}`);
+    if (!["Si", "No"].includes(row.aplicativo_activo)) rowErrors.push(`aplicativo_activo invalido: ${row.aplicativo_activo}`);
     if (profile?.role === "trabajador" && recurso && recurso !== profile.resource_name) {
       rowErrors.push(`recurso no corresponde a tu usuario: ${row.recurso}`);
     }
@@ -108,8 +117,8 @@ export function parseBulkText(text: string, masters: MasterData, tickets: Ticket
       tipo_atencion: tipo!,
       horas_invertidas: horas,
       estado_tck: row.estado_tck as TimeEntry["estado_tck"],
-      en_servicio: row.en_servicio as "Si" | "No",
-      aplicativo_se_encuentra: row.aplicativo_se_encuentra as "Si" | "No",
+      en_servicio: row.servicio_integracion as "Si" | "No",
+      aplicativo_se_encuentra: row.aplicativo_activo as "Si" | "No",
       modificado: new Date().toISOString()
     });
   });

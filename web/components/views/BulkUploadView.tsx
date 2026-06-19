@@ -63,11 +63,10 @@ function downloadBulkTemplate(masters: MasterData) {
     listValidation("usuario_reporta", "lista_usuarios_reporta"),
     listValidation("recurso", "lista_recursos"),
     listValidation("aplicativo", "lista_aplicativos"),
-    listValidation("sociedad", "lista_sociedades"),
     listValidation("tipo_atencion", "lista_tipos_atencion"),
     listValidation("estado_tck", "lista_estados"),
-    listValidation("en_servicio", "lista_si_no"),
-    listValidation("aplicativo_se_encuentra", "lista_si_no")
+    listValidation("servicio_integracion", "lista_si_no"),
+    listValidation("aplicativo_activo", "lista_si_no")
   ].join("");
 
   const blankRows = Array.from({ length: 499 }, () => bulkHeaders.map(() => ""));
@@ -102,7 +101,7 @@ function downloadBulkTemplate(masters: MasterData) {
   ${xmlSheet("Si No", [["valor"], ...siNo.map((item) => [item])], "", { hidden: true })}
   ${xmlSheet("Notas", [
     ["Campo", "Nota"],
-    ["sociedad", "El desplegable permite elegir una sociedad. Para varias sociedades, escribirlas separadas con | usando valores exactos de la hoja Sociedades."],
+    ["sociedad", "Para una o varias sociedades, escribir valores exactos separados con |. Ejemplo: A124 - MAKRO | A125 - Food retail."],
     ["fechas", "Usar formato YYYY-MM-DD."],
     ["horas_invertidas", "Usar numero mayor a cero y maximo 8."]
   ])}
