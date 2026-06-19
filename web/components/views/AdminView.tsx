@@ -5,7 +5,7 @@ import { Plus, Save, Trash2 } from "lucide-react";
 import { saveMasters, saveProfiles, saveTeams } from "@/lib/repository";
 import type { MasterData, Profile, Team } from "@/lib/types";
 
-type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle">;
+type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle" | "tiposAtencionDetalle">;
 
 const roleOptions: Profile["role"][] = [
   "trabajador_aplicaciones",

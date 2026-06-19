@@ -86,7 +86,7 @@ export async function loadMasters(): Promise<MasterData> {
       supabase.from("reporter_users").select("name").eq("active", true).order("name"),
       supabase.from("companies").select("name").eq("active", true).order("name"),
       supabase.from("applications").select("*").eq("active", true).order("name"),
-      supabase.from("attention_types").select("name").eq("active", true).order("name")
+      supabase.from("attention_types").select("*").eq("active", true).order("name")
     ]);
     return {
       recursos: (resources.data ?? []).map((item) => item.name),
@@ -99,10 +99,24 @@ export async function loadMasters(): Promise<MasterData> {
         service: item.service ?? "",
         fecha_creacion: item.fecha_creacion ?? ""
       })),
-      tiposAtencion: (attention.data ?? []).map((item) => item.name)
+      tiposAtencion: (attention.data ?? []).map((item) => item.name),
+      tiposAtencionDetalle: (attention.data ?? []).map((item) => ({
+        name: item.name,
+        type: item.type ?? String(item.name ?? "").split(" - ")[0]?.trim() ?? "",
+        classification: item.classification ?? String(item.name ?? "").split(" - ").slice(1).join(" - ").trim() ?? ""
+      }))
     };
   }
-  return readLocal(mastersKey, demoMasterData);
+  const localMasters = readLocal(mastersKey, demoMasterData);
+  return {
+    ...localMasters,
+    tiposAtencionDetalle: localMasters.tiposAtencionDetalle?.length
+      ? localMasters.tiposAtencionDetalle
+      : localMasters.tiposAtencion.map((name) => {
+          const [type, ...classification] = name.split(" - ");
+          return { name, type: type.trim(), classification: classification.join(" - ").trim() };
+        })
+  };
 }
 
 export async function loadBiMasters(): Promise<BiMasterData> {
@@ -224,9 +238,12 @@ function mapTicket(row: Record<string, unknown>): Ticket {
     subject_correo: String(row.subject_correo ?? ""),
     alcance_correo: String(row.alcance_correo ?? ""),
     tipo_atencion: row.tipo_atencion as Ticket["tipo_atencion"],
+    subcategoria_atencion: String(row.subcategoria_atencion ?? ""),
     estado: row.estado as Ticket["estado"],
     fecha_termino: String(row.fecha_termino ?? ""),
     tipo_tck: row.tipo_tck as Ticket["tipo_tck"],
+    en_servicio: (row.en_servicio as Ticket["en_servicio"]) ?? "No",
+    aplicativo_se_encuentra: (row.aplicativo_se_encuentra as Ticket["aplicativo_se_encuentra"]) ?? "Si",
     approval_status: (row.approval_status as Ticket["approval_status"]) ?? "Aprobado",
     rejection_reason: String(row.rejection_reason ?? ""),
     requested_by: row.requested_by ? String(row.requested_by) : null,
@@ -305,7 +322,7 @@ export async function requestTicket(ticket: Ticket): Promise<Ticket[]> {
   const requested = {
     ...ticket,
     codigo_tck: ticket.codigo_tck || `TMP${tickets.length + 1}`,
-    approval_status: "Pendiente" as const,
+    approval_status: "Aprobado" as const,
     rejection_reason: ""
   };
   const next = [requested, ...tickets];
@@ -426,6 +443,26 @@ export async function loadVisibleResources(profile: Profile, masters: MasterData
     .filter((team) => team.active && team.profile_ids.includes(profile.id))
     .forEach((team) => team.resources.forEach((resource) => visible.add(resource)));
   return Array.from(visible).sort((a, b) => a.localeCompare(b));
+}
+
+export async function loadVisibleApplications(profile: Profile, masters: MasterData): Promise<string[]> {
+  if (profile.role === "administracion") return masters.aplicaciones;
+
+  if (hasSupabaseConfig && supabase) {
+    const { data, error } = await supabase.rpc("current_visible_application_names");
+    if (!error && data) {
+      const visible = Array.from(
+        new Set(
+          (data as Array<{ application_name: string }>)
+            .map((item) => item.application_name)
+            .filter(Boolean)
+        )
+      ).sort((a, b) => a.localeCompare(b));
+      if (visible.length) return visible;
+    }
+  }
+
+  return masters.aplicaciones;
 }
 
 export async function saveTeams(teams: Team[]): Promise<Team[]> {

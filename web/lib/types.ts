@@ -16,6 +16,7 @@ export type MasterData = {
   aplicacionesDetalle: ApplicationMaster[];
   sociedades: string[];
   tiposAtencion: string[];
+  tiposAtencionDetalle: AttentionMaster[];
 };
 
 export type BiMasterData = {
@@ -55,6 +56,12 @@ export type ApplicationMaster = {
   company: string;
   service: string;
   fecha_creacion: string;
+};
+
+export type AttentionMaster = {
+  name: string;
+  type: string;
+  classification: string;
 };
 
 export type Team = {
@@ -108,9 +115,12 @@ export type Ticket = {
   subject_correo: string;
   alcance_correo: string;
   tipo_atencion: TicketAttentionType;
+  subcategoria_atencion: string;
   estado: TicketStatus;
   fecha_termino: string;
   tipo_tck: TicketWorkType;
+  en_servicio: "Si" | "No";
+  aplicativo_se_encuentra: "Si" | "No";
   approval_status: TicketApprovalStatus;
   rejection_reason: string;
   requested_by?: string | null;

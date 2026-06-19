@@ -9,7 +9,6 @@ import { BiBulkUploadView } from "@/components/views/BiBulkUploadView";
 import { BulkUploadView } from "@/components/views/BulkUploadView";
 import { DashboardView } from "@/components/views/DashboardView";
 import { EntriesView } from "@/components/views/EntriesView";
-import { RegisterView } from "@/components/views/RegisterView";
 import { TicketsView } from "@/components/views/TicketsView";
 import {
   getCurrentProfile,
@@ -20,6 +19,7 @@ import {
   loadProfiles,
   loadTeams,
   loadTickets,
+  loadVisibleApplications,
   loadVisibleResources,
   signIn,
   signOut,
@@ -31,7 +31,6 @@ import type { BiEntry, BiMasterData } from "@/lib/types";
 const menuItems = [
   { key: "tickets", label: "Tickets" },
   { key: "listado", label: "Listado de Atenciones" },
-  { key: "registrar", label: "Registrar Atencion" },
   { key: "carga", label: "Carga Masiva - Atencion" },
   { key: "bi", label: "BI" },
   { key: "cargabi", label: "Carga Masiva BI" },
@@ -55,7 +54,7 @@ function defaultPageFor(profile: Profile) {
 }
 
 function canViewPage(profile: Profile, key: PageKey) {
-  if (["tickets", "listado", "registrar", "carga"].includes(key)) return isApplicationRole(profile);
+  if (["tickets", "listado", "carga"].includes(key)) return isApplicationRole(profile);
   if (key === "bi" || key === "cargabi") return isBiRole(profile);
   if (key === "dashboard" || key === "admin") return profile.role === "administracion";
   if (key === "adminbi") return ["adminbi", "administracion"].includes(profile.role);
@@ -78,6 +77,7 @@ export default function Home() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [visibleResources, setVisibleResources] = useState<string[]>([]);
+  const [visibleApplications, setVisibleApplications] = useState<string[]>([]);
   const [loginMessage, setLoginMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -104,13 +104,14 @@ export default function Home() {
     const biAllowed = isBiRole(currentProfile);
     const masterData = appAllowed ? await loadMasters() : null;
     const biMasterData = biAllowed ? await loadBiMasters() : null;
-    const [entryData, biEntryData, profileData, teamData, ticketData, visibleResourceData] = await Promise.all([
+    const [entryData, biEntryData, profileData, teamData, ticketData, visibleResourceData, visibleApplicationData] = await Promise.all([
       appAllowed && masterData ? loadEntries(currentProfile) : Promise.resolve([]),
       biAllowed ? loadBiEntries(currentProfile) : Promise.resolve([]),
       currentProfile.role === "administracion" ? loadProfiles() : Promise.resolve([]),
       currentProfile.role === "administracion" ? loadTeams() : Promise.resolve([]),
       appAllowed ? loadTickets(currentProfile) : Promise.resolve([]),
-      appAllowed && masterData ? loadVisibleResources(currentProfile, masterData) : Promise.resolve([])
+      appAllowed && masterData ? loadVisibleResources(currentProfile, masterData) : Promise.resolve([]),
+      appAllowed && masterData ? loadVisibleApplications(currentProfile, masterData) : Promise.resolve([])
     ]);
     setMasters(masterData);
     setBiMasters(biMasterData);
@@ -120,6 +121,7 @@ export default function Home() {
     setTeams(teamData);
     setTickets(ticketData);
     setVisibleResources(visibleResourceData);
+    setVisibleApplications(visibleApplicationData);
   }
 
   async function handleLogin(event: React.FormEvent) {
@@ -169,6 +171,7 @@ export default function Home() {
     setTeams([]);
     setTickets([]);
     setVisibleResources([]);
+    setVisibleApplications([]);
     setPassword("");
     setPage("listado");
   }
@@ -272,10 +275,9 @@ export default function Home() {
           <h1>EyS Bitacora</h1>
           <p className="muted">Registro de horas y atenciones</p>
         </div>
-        {page === "registrar" && masters && <RegisterView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
         {page === "carga" && masters && <BulkUploadView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
         {page === "listado" && masters && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
-        {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} onChanged={() => refresh(profile)} />}
+        {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} visibleApplications={visibleApplications} onChanged={() => refresh(profile)} />}
         {page === "bi" && biMasters && <BiView profile={profile} masters={biMasters} entries={biEntries} onChanged={() => refresh(profile)} />}
         {page === "cargabi" && biMasters && <BiBulkUploadView profile={profile} masters={biMasters} onSaved={() => refresh(profile)} />}
         {page === "dashboard" &&

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { MasterData, Profile } from "@/lib/types";
 
-type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle">;
+type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle" | "tiposAtencionDetalle">;
 
 const masterTables: Record<MasterListKey, string> = {
   recursos: "resources",
@@ -56,7 +56,7 @@ async function readMasters(supabase: ReturnType<typeof adminClient>): Promise<Ma
     supabase.from("reporter_users").select("name").eq("active", true).order("name"),
     supabase.from("companies").select("name").eq("active", true).order("name"),
     supabase.from("applications").select("*").eq("active", true).order("name"),
-    supabase.from("attention_types").select("name").eq("active", true).order("name")
+    supabase.from("attention_types").select("*").eq("active", true).order("name")
   ]);
 
   return {
@@ -70,7 +70,12 @@ async function readMasters(supabase: ReturnType<typeof adminClient>): Promise<Ma
       service: item.service ?? "",
       fecha_creacion: item.fecha_creacion ?? ""
     })),
-    tiposAtencion: (attention.data ?? []).map((item) => item.name)
+    tiposAtencion: (attention.data ?? []).map((item) => item.name),
+    tiposAtencionDetalle: (attention.data ?? []).map((item) => ({
+      name: item.name,
+      type: item.type ?? String(item.name ?? "").split(" - ")[0]?.trim() ?? "",
+      classification: item.classification ?? String(item.name ?? "").split(" - ").slice(1).join(" - ").trim() ?? ""
+    }))
   };
 }
 

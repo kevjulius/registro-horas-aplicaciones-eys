@@ -48,6 +48,11 @@ export const demoMasterData: MasterData = {
     "Actividades Internas - Atenciones Urgentes",
     "Actividades Internas - Vacaciones",
     "Incidencia - Error del Sistema"
+  ],
+  tiposAtencionDetalle: [
+    { name: "Actividades Internas - Atenciones Urgentes", type: "Actividades Internas", classification: "Atenciones Urgentes" },
+    { name: "Actividades Internas - Vacaciones", type: "Actividades Internas", classification: "Vacaciones" },
+    { name: "Incidencia - Error del Sistema", type: "Incidencia", classification: "Error del Sistema" }
   ]
 };
 
@@ -94,9 +99,12 @@ export const demoTickets: Ticket[] = [
     subject_correo: "Ticket de ejemplo",
     alcance_correo: "Registro de ejemplo para validar el flujo.",
     tipo_atencion: "Actividades Internas",
+    subcategoria_atencion: "Atenciones Urgentes",
     estado: "En Proceso",
     fecha_termino: "2026-06-11",
     tipo_tck: "Personal",
+    en_servicio: "No",
+    aplicativo_se_encuentra: "Si",
     approval_status: "Aprobado",
     rejection_reason: "",
     responsables: ["Kevin Medina"],

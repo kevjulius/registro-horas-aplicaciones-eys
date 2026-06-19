@@ -6,7 +6,7 @@ import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
 import type { MasterData, Profile, Ticket, TicketAttentionType, TimeEntry } from "@/lib/types";
 
 export const estados = ["En Proceso", "Cerrado", "Pendiente"] as const;
-export const ticketEstados = ["Cerrado", "Pendiente", "En Proceso", "Cancelado"] as const;
+export const ticketEstados = ["En Proceso", "Cerrado"] as const;
 export const ticketApprovalStatuses = ["Pendiente", "Aprobado", "Rechazado"] as const;
 export const ticketAttentionTypes: TicketAttentionType[] = [
   "Requerimiento",
@@ -19,6 +19,9 @@ export const ticketAttentionTypes: TicketAttentionType[] = [
 ];
 export const siNo = ["No", "Si"] as const;
 export const hourValidationMessage = "El valor debe ser mayor a 0 y menor a 8.";
+export const ticketMaxDaysByType: Partial<Record<TicketAttentionType, number>> = {
+  Soporte: 15
+};
 
 export function today() {
   return new Date().toISOString().slice(0, 10);
@@ -65,9 +68,12 @@ export function emptyTicket(): Ticket {
     subject_correo: "",
     alcance_correo: "",
     tipo_atencion: "Requerimiento",
-    estado: "Pendiente",
+    subcategoria_atencion: "",
+    estado: "En Proceso",
     fecha_termino: today(),
     tipo_tck: "Personal",
+    en_servicio: "No",
+    aplicativo_se_encuentra: "Si",
     approval_status: "Aprobado",
     rejection_reason: "",
     responsables: [],
@@ -77,7 +83,6 @@ export function emptyTicket(): Ticket {
 
 export function ticketMatchesEntry(ticket: Ticket, entry: TimeEntry, profile: Profile) {
   if (ticket.codigo_tck.toUpperCase() !== entry.codigo_tck.trim().toUpperCase()) return false;
-  if (ticket.approval_status !== "Aprobado") return false;
   if (!ticketMatchesReportPeriod(ticket, entry.fecha_reporte)) return false;
   if (["trabajador", "trabajador_aplicaciones"].includes(profile.role) && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
   return true;
@@ -216,7 +221,8 @@ export function TicketForm({
   canEditApproval = false,
   responsibilitiesDisabled = false,
   showReceptionDate = true,
-  resourceOptions
+  resourceOptions,
+  applicationOptions
 }: {
   ticket: Ticket;
   masters: MasterData;
@@ -229,8 +235,21 @@ export function TicketForm({
   responsibilitiesDisabled?: boolean;
   showReceptionDate?: boolean;
   resourceOptions?: string[];
+  applicationOptions?: string[];
 }) {
   const responsibleOptions = resourceOptions ?? masters.recursos;
+  const systemOptions = applicationOptions?.length ? applicationOptions : masters.aplicaciones;
+  const attentionDetails = masters.tiposAtencionDetalle.length
+    ? masters.tiposAtencionDetalle
+    : masters.tiposAtencion.map((name) => {
+        const [type, ...classification] = name.split(" - ");
+        return { name, type: type.trim(), classification: classification.join(" - ").trim() };
+      });
+  const attentionTypes = Array.from(new Set(attentionDetails.map((item) => item.type).filter(Boolean))) as TicketAttentionType[];
+  const subcategories = attentionDetails
+    .filter((item) => item.type === ticket.tipo_atencion)
+    .map((item) => item.classification)
+    .filter(Boolean);
 
   return (
     <div className="card grid ticket-form-card">
@@ -255,10 +274,11 @@ export function TicketForm({
           </label>
           <label>
             Tipo de atencion
-            <select value={ticket.tipo_atencion} onChange={(event) => onPatch({ tipo_atencion: event.target.value as Ticket["tipo_atencion"] })}>
-              {ticketAttentionTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            <select value={ticket.tipo_atencion} onChange={(event) => onPatch({ tipo_atencion: event.target.value as Ticket["tipo_atencion"], subcategoria_atencion: "" })}>
+              {(attentionTypes.length ? attentionTypes : ticketAttentionTypes).map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
           </label>
+          <SelectField label="Subcategoria" value={ticket.subcategoria_atencion} options={subcategories} onChange={(value) => onPatch({ subcategoria_atencion: value })} />
           <label>
             Estado
             <select value={ticket.estado} onChange={(event) => onPatch({ estado: event.target.value as Ticket["estado"] })}>
@@ -270,27 +290,13 @@ export function TicketForm({
             <input value={ticket.tipo_tck} disabled />
           </label>
         </div>
-        {canEditApproval && (
-          <div className="grid grid-2">
-            <label>
-              Aprobacion
-              <select value={ticket.approval_status} onChange={(event) => onPatch({ approval_status: event.target.value as Ticket["approval_status"] })}>
-                {ticketApprovalStatuses.map((state) => <option key={state} value={state}>{state}</option>)}
-              </select>
-            </label>
-            <label>
-              Motivo de rechazo
-              <input value={ticket.rejection_reason ?? ""} onChange={(event) => onPatch({ rejection_reason: event.target.value })} placeholder="Obligatorio si se rechaza" />
-            </label>
-          </div>
-        )}
       </div>
 
       <div className="form-band">
         <h3>Fechas y solicitante</h3>
         <div className="grid grid-4">
           <label>
-            Fecha solicitud
+            Fecha inicio
             <input type="date" value={ticket.fecha_solicitud} onChange={(event) => onPatch({ fecha_solicitud: event.target.value })} />
           </label>
           {showReceptionDate && (
@@ -310,8 +316,10 @@ export function TicketForm({
       <div className="form-band">
         <h3>Clasificacion y responsables</h3>
         <div className="ticket-form-grid">
-          <SelectField label="Sistema" value={ticket.sistema} options={masters.aplicaciones} onChange={(value) => onPatch({ sistema: value })} />
+          <SelectField label="Sistema" value={ticket.sistema} options={systemOptions} onChange={(value) => onPatch({ sistema: value })} />
           <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} onChange={(value) => onPatch({ formato: value })} />
+          <SelectField label="Es un servicio de integracion?" value={ticket.en_servicio} options={siNo} onChange={(value) => onPatch({ en_servicio: value as "Si" | "No" })} />
+          <SelectField label="Aplicativo se encuentra operativo" value={ticket.aplicativo_se_encuentra} options={siNo} onChange={(value) => onPatch({ aplicativo_se_encuentra: value as "Si" | "No" })} />
           <label>
             Responsables
             <div className="multi-select team-select">

@@ -1,16 +1,15 @@
 import type { Ticket } from "./types";
 
-function periodKey(date: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(0, 7) : "";
+function isIsoDate(date: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date);
 }
 
-export function ticketMatchesReportPeriod(ticket: Pick<Ticket, "fecha_recepcion">, reportDate: string) {
-  const ticketPeriod = periodKey(ticket.fecha_recepcion);
-  const reportPeriod = periodKey(reportDate);
-  return Boolean(ticketPeriod && reportPeriod && ticketPeriod === reportPeriod);
+export function ticketMatchesReportPeriod(ticket: Pick<Ticket, "fecha_solicitud" | "fecha_termino">, reportDate: string) {
+  if (!isIsoDate(ticket.fecha_solicitud) || !isIsoDate(ticket.fecha_termino) || !isIsoDate(reportDate)) return false;
+  return reportDate >= ticket.fecha_solicitud && reportDate <= ticket.fecha_termino;
 }
 
-export function ticketPeriodValidationMessage(ticket: Pick<Ticket, "codigo_tck" | "fecha_recepcion">, reportDate: string) {
+export function ticketPeriodValidationMessage(ticket: Pick<Ticket, "codigo_tck" | "fecha_solicitud" | "fecha_termino">, reportDate: string) {
   if (ticketMatchesReportPeriod(ticket, reportDate)) return "";
-  return `El ticket ${ticket.codigo_tck} pertenece al periodo ${ticket.fecha_recepcion.slice(0, 7)} y no puede usarse con fecha de reporte ${reportDate}.`;
+  return `El ticket ${ticket.codigo_tck} solo permite reportes entre ${ticket.fecha_solicitud} y ${ticket.fecha_termino}.`;
 }

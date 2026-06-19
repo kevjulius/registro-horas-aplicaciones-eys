@@ -16,6 +16,9 @@ const ticketTypes = Object.keys(ticketPrefixes) as TicketAttentionType[];
 const ticketStatuses = ["Cerrado", "Pendiente", "En Proceso", "Cancelado"];
 const approvalStatuses = ["Pendiente", "Aprobado", "Rechazado"];
 const workTypes = ["Personal", "Grupal"];
+const maxDaysByType: Partial<Record<TicketAttentionType, number>> = {
+  Soporte: 15
+};
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -108,9 +111,12 @@ function validateTicket(ticket: Ticket) {
     ticket.fecha_recepcion,
     ticket.alcance_correo,
     ticket.tipo_atencion,
+    ticket.subcategoria_atencion,
     ticket.estado,
     ticket.fecha_termino,
-    ticket.tipo_tck
+    ticket.tipo_tck,
+    ticket.en_servicio,
+    ticket.aplicativo_se_encuentra
   ];
 
   if (required.some((value) => !String(value ?? "").trim())) {
@@ -118,10 +124,21 @@ function validateTicket(ticket: Ticket) {
   }
   if (!ticketTypes.includes(ticket.tipo_atencion)) throw new Error(`Tipo de atencion invalido: ${ticket.tipo_atencion}`);
   if (!ticketStatuses.includes(ticket.estado)) throw new Error(`Estado invalido: ${ticket.estado}`);
-  if (!approvalStatuses.includes(ticket.approval_status)) throw new Error(`Aprobacion invalida: ${ticket.approval_status}`);
-  if (ticket.approval_status === "Rechazado" && !ticket.rejection_reason.trim()) {
-    throw new Error("El motivo de rechazo es obligatorio.");
+  if (ticket.fecha_termino < ticket.fecha_solicitud) throw new Error("La fecha termino no puede ser anterior a la fecha inicio.");
+  if (ticket.fecha_termino < new Date().toISOString().slice(0, 10) && ticket.estado !== "Cerrado") {
+    throw new Error("Si la fecha termino es anterior a hoy, el estado debe ser Cerrado.");
   }
+  if (ticket.fecha_termino >= new Date().toISOString().slice(0, 10) && !["Cerrado", "En Proceso"].includes(ticket.estado)) {
+    throw new Error("Si la fecha termino es hoy o futura, el estado debe ser Cerrado o En Proceso.");
+  }
+  const maxDays = maxDaysByType[ticket.tipo_atencion];
+  if (maxDays) {
+    const start = new Date(`${ticket.fecha_solicitud}T00:00:00`);
+    const end = new Date(`${ticket.fecha_termino}T00:00:00`);
+    const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+    if (days > maxDays) throw new Error(`${ticket.tipo_atencion} permite maximo ${maxDays} dias.`);
+  }
+  if (!approvalStatuses.includes(ticket.approval_status)) throw new Error(`Aprobacion invalida: ${ticket.approval_status}`);
   if (!workTypes.includes(ticket.tipo_tck)) throw new Error(`Tipo de ticket invalido: ${ticket.tipo_tck}`);
 
   const responsables = cleanList(ticket.responsables ?? []);
@@ -152,9 +169,12 @@ async function readTickets(supabase: ReturnType<typeof adminClient>): Promise<Ti
     subject_correo: row.subject_correo,
     alcance_correo: row.alcance_correo,
     tipo_atencion: row.tipo_atencion,
+    subcategoria_atencion: row.subcategoria_atencion ?? "",
     estado: row.estado,
     fecha_termino: row.fecha_termino,
     tipo_tck: row.tipo_tck,
+    en_servicio: row.en_servicio ?? "No",
+    aplicativo_se_encuentra: row.aplicativo_se_encuentra ?? "Si",
     approval_status: row.approval_status ?? "Aprobado",
     rejection_reason: row.rejection_reason ?? "",
     requested_by: row.requested_by ?? null,
@@ -195,6 +215,9 @@ export async function POST(request: Request) {
         usuario_solicitante: ticket.usuario_solicitante.trim(),
         subject_correo: (ticket.subject_correo || ticket.alcance_correo).trim(),
         alcance_correo: ticket.alcance_correo.trim(),
+        subcategoria_atencion: ticket.subcategoria_atencion.trim(),
+        en_servicio: ticket.en_servicio ?? "No",
+        aplicativo_se_encuentra: ticket.aplicativo_se_encuentra ?? "Si",
         approval_status: ticket.approval_status ?? "Aprobado",
         rejection_reason: ticket.rejection_reason?.trim() ?? "",
         responsables: cleanList(ticket.responsables ?? []),
@@ -229,12 +252,15 @@ export async function POST(request: Request) {
         subject_correo: ticket.subject_correo,
         alcance_correo: ticket.alcance_correo,
         tipo_atencion: ticket.tipo_atencion,
+        subcategoria_atencion: ticket.subcategoria_atencion,
         estado: ticket.estado,
         fecha_termino: ticket.fecha_termino,
         tipo_tck: ticket.tipo_tck,
-        approval_status: ticket.approval_status,
-        rejection_reason: ticket.approval_status === "Rechazado" ? ticket.rejection_reason : "",
-        reviewed_at: ["Aprobado", "Rechazado"].includes(ticket.approval_status) ? new Date().toISOString() : null,
+        en_servicio: ticket.en_servicio,
+        aplicativo_se_encuentra: ticket.aplicativo_se_encuentra,
+        approval_status: "Aprobado",
+        rejection_reason: "",
+        reviewed_at: new Date().toISOString(),
         active: true,
         updated_at: new Date().toISOString()
       };

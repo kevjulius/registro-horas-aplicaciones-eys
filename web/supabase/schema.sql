@@ -2,7 +2,7 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null unique,
   display_name text not null,
-  role text not null check (role in ('trabajador', 'administracion')),
+  role text not null check (role in ('trabajador', 'trabajador_aplicaciones', 'trabajador_bi', 'adminbi', 'administracion')),
   resource_name text,
   active boolean not null default true,
   created_at timestamptz not null default now()
@@ -63,6 +63,12 @@ create table public.resource_teams (
   primary key (resource_name, team_id)
 );
 
+create table public.team_applications (
+  team_id uuid not null references public.teams(id) on delete cascade,
+  application_name text not null references public.applications(name) on update cascade on delete cascade,
+  primary key (team_id, application_name)
+);
+
 create table public.tickets (
   id uuid primary key default gen_random_uuid(),
   codigo_tck text not null unique,
@@ -74,9 +80,17 @@ create table public.tickets (
   subject_correo text not null,
   alcance_correo text not null,
   tipo_atencion text not null check (tipo_atencion in ('Requerimiento', 'Proyecto', 'Anteproyecto', 'Soporte', 'Monitoreo', 'Incidencia', 'Actividades Internas')),
+  subcategoria_atencion text not null default '',
   estado text not null check (estado in ('Cerrado', 'Pendiente', 'En Proceso', 'Cancelado')),
   fecha_termino date not null,
   tipo_tck text not null check (tipo_tck in ('Personal', 'Grupal')),
+  en_servicio text not null default 'No' check (en_servicio in ('Si', 'No')),
+  aplicativo_se_encuentra text not null default 'Si' check (aplicativo_se_encuentra in ('Si', 'No')),
+  approval_status text not null default 'Aprobado' check (approval_status in ('Pendiente', 'Aprobado', 'Rechazado')),
+  rejection_reason text not null default '',
+  requested_by uuid references public.profiles(id) on delete set null,
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -117,6 +131,7 @@ alter table public.attention_types enable row level security;
 alter table public.teams enable row level security;
 alter table public.profile_teams enable row level security;
 alter table public.resource_teams enable row level security;
+alter table public.team_applications enable row level security;
 alter table public.tickets enable row level security;
 alter table public.ticket_responsables enable row level security;
 alter table public.time_entries enable row level security;
@@ -176,6 +191,20 @@ as $$
   where pt.profile_id = auth.uid()
 $$;
 
+create or replace function public.current_visible_application_names()
+returns table(application_name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select ta.application_name
+  from public.profile_teams pt
+  join public.teams t on t.id = pt.team_id and t.active = true
+  join public.team_applications ta on ta.team_id = pt.team_id
+  where pt.profile_id = auth.uid()
+$$;
+
 create or replace function public.current_ticket_ids()
 returns table(ticket_id uuid)
 language sql
@@ -202,6 +231,7 @@ create policy "attention read authenticated" on public.attention_types for selec
 create policy "teams read admin" on public.teams for select using (public.is_admin());
 create policy "profile teams read admin" on public.profile_teams for select using (public.is_admin());
 create policy "resource teams read admin" on public.resource_teams for select using (public.is_admin());
+create policy "team applications read admin" on public.team_applications for select using (public.is_admin());
 
 create policy "tickets read assigned or admin" on public.tickets
 for select using (

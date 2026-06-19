@@ -14,6 +14,9 @@ const ticketPrefixes: Record<TicketAttentionType, string> = {
 
 const ticketTypes = Object.keys(ticketPrefixes) as TicketAttentionType[];
 const ticketStatuses = ["Cerrado", "Pendiente", "En Proceso", "Cancelado"];
+const maxDaysByType: Partial<Record<TicketAttentionType, number>> = {
+  Soporte: 15
+};
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -135,8 +138,11 @@ function validateTicket(ticket: Ticket, responsables: string[], visibleResources
     ticket.fecha_recepcion,
     ticket.alcance_correo,
     ticket.tipo_atencion,
+    ticket.subcategoria_atencion,
     ticket.estado,
-    ticket.fecha_termino
+    ticket.fecha_termino,
+    ticket.en_servicio,
+    ticket.aplicativo_se_encuentra
   ];
 
   if (required.some((value) => !String(value ?? "").trim())) {
@@ -144,6 +150,20 @@ function validateTicket(ticket: Ticket, responsables: string[], visibleResources
   }
   if (!ticketTypes.includes(ticket.tipo_atencion)) throw new Error(`Tipo de atencion invalido: ${ticket.tipo_atencion}`);
   if (!ticketStatuses.includes(ticket.estado)) throw new Error(`Estado invalido: ${ticket.estado}`);
+  if (ticket.fecha_termino < ticket.fecha_solicitud) throw new Error("La fecha termino no puede ser anterior a la fecha inicio.");
+  if (ticket.fecha_termino < new Date().toISOString().slice(0, 10) && ticket.estado !== "Cerrado") {
+    throw new Error("Si la fecha termino es anterior a hoy, el estado debe ser Cerrado.");
+  }
+  if (ticket.fecha_termino >= new Date().toISOString().slice(0, 10) && !["Cerrado", "En Proceso"].includes(ticket.estado)) {
+    throw new Error("Si la fecha termino es hoy o futura, el estado debe ser Cerrado o En Proceso.");
+  }
+  const maxDays = maxDaysByType[ticket.tipo_atencion];
+  if (maxDays) {
+    const start = new Date(`${ticket.fecha_solicitud}T00:00:00`);
+    const end = new Date(`${ticket.fecha_termino}T00:00:00`);
+    const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+    if (days > maxDays) throw new Error(`${ticket.tipo_atencion} permite maximo ${maxDays} dias.`);
+  }
   if (!responsables.length) throw new Error("Selecciona al menos un responsable.");
   const invalidResources = responsables.filter((resource) => !visibleResources.includes(resource));
   if (invalidResources.length) throw new Error(`No puedes asignar recursos fuera de tus equipos: ${invalidResources.join(", ")}`);
@@ -170,10 +190,13 @@ async function readTickets(supabase: ReturnType<typeof adminClient>, profile: Pr
       subject_correo: row.subject_correo,
       alcance_correo: row.alcance_correo,
       tipo_atencion: row.tipo_atencion,
+      subcategoria_atencion: row.subcategoria_atencion ?? "",
       estado: row.estado,
       fecha_termino: row.fecha_termino,
       tipo_tck: row.tipo_tck,
-      approval_status: row.approval_status ?? "Pendiente",
+      en_servicio: row.en_servicio ?? "No",
+      aplicativo_se_encuentra: row.aplicativo_se_encuentra ?? "Si",
+      approval_status: row.approval_status ?? "Aprobado",
       rejection_reason: row.rejection_reason ?? "",
       requested_by: row.requested_by ?? null,
       reviewed_by: row.reviewed_by ?? null,
@@ -205,10 +228,13 @@ export async function POST(request: Request) {
       subject_correo: (ticket.subject_correo || ticket.alcance_correo).trim(),
       alcance_correo: ticket.alcance_correo.trim(),
       tipo_atencion: ticket.tipo_atencion,
+      subcategoria_atencion: ticket.subcategoria_atencion.trim(),
       estado: ticket.estado,
       fecha_termino: ticket.fecha_termino,
       tipo_tck: responsables.length > 1 ? "Grupal" : "Personal",
-      approval_status: "Pendiente",
+      en_servicio: ticket.en_servicio,
+      aplicativo_se_encuentra: ticket.aplicativo_se_encuentra,
+      approval_status: "Aprobado",
       rejection_reason: "",
       requested_by: profile.id,
       active: true,

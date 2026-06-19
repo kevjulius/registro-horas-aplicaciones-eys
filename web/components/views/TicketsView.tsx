@@ -1,30 +1,36 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Pencil, Search, Trash2, XCircle } from "lucide-react";
+import { Clock, Pencil, Save, Search, Trash2 } from "lucide-react";
 import {
+  clearHourValidation,
   emptyTicket,
+  hourValidationMessage,
   SelectField,
-  ticketApprovalStatuses,
   ticketAttentionTypes,
   ticketEstados,
+  ticketMaxDaysByType,
   TicketForm,
-  today
+  today,
+  showHourValidation
 } from "@/components/app-shared";
-import { requestTicket, saveTickets } from "@/lib/repository";
-import type { MasterData, Profile, Ticket } from "@/lib/types";
+import { requestTicket, saveEntry, saveTickets } from "@/lib/repository";
+import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
+import type { MasterData, Profile, Ticket, TimeEntry } from "@/lib/types";
 
 export function TicketsView({
   profile,
   masters,
   tickets,
   visibleResources,
+  visibleApplications,
   onChanged
 }: {
   profile: Profile;
   masters: MasterData;
   tickets: Ticket[];
   visibleResources: string[];
+  visibleApplications: string[];
   onChanged: () => void;
 }) {
   const isAdmin = profile.role === "administracion";
@@ -34,7 +40,7 @@ export function TicketsView({
     const draft = emptyTicket();
     return {
       ...draft,
-      approval_status: isAdmin ? "Aprobado" : "Pendiente",
+      approval_status: "Aprobado",
       responsables: isAdmin ? [] : [profile.resource_name ?? responsibleOptions[0] ?? ""].filter(Boolean),
       tipo_tck: "Personal" as const
     };
@@ -44,9 +50,12 @@ export function TicketsView({
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [ticketView, setTicketView] = useState<"crear" | "listado">("listado");
   const [ticketMessage, setTicketMessage] = useState("");
+  const [quickTicket, setQuickTicket] = useState<Ticket | null>(null);
+  const [quickDate, setQuickDate] = useState(today());
+  const [quickHours, setQuickHours] = useState(0);
+  const [quickMessage, setQuickMessage] = useState("");
   const [ticketSearch, setTicketSearch] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("Todos");
-  const [ticketApprovalFilter, setTicketApprovalFilter] = useState("Todos");
   const [ticketTypeFilter, setTicketTypeFilter] = useState("Todos");
   const [ticketResponsibleFilter, setTicketResponsibleFilter] = useState("Todos");
   const [ticketDateFrom, setTicketDateFrom] = useState(today());
@@ -56,10 +65,9 @@ export function TicketsView({
     const search = ticketSearch.trim().toLowerCase();
     return tickets.filter((ticket) => {
       if (!isAdmin && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
-      if (ticketDateFrom && ticket.fecha_recepcion < ticketDateFrom) return false;
-      if (ticketDateTo && ticket.fecha_recepcion > ticketDateTo) return false;
+      if (ticketDateFrom && ticket.fecha_solicitud < ticketDateFrom) return false;
+      if (ticketDateTo && ticket.fecha_solicitud > ticketDateTo) return false;
       if (ticketStatusFilter !== "Todos" && ticket.estado !== ticketStatusFilter) return false;
-      if (ticketApprovalFilter !== "Todos" && ticket.approval_status !== ticketApprovalFilter) return false;
       if (ticketTypeFilter !== "Todos" && ticket.tipo_atencion !== ticketTypeFilter) return false;
       if (ticketResponsibleFilter !== "Todos" && !ticket.responsables.includes(ticketResponsibleFilter)) return false;
       if (search) {
@@ -68,20 +76,18 @@ export function TicketsView({
           ticket.sistema,
           ticket.usuario_solicitante,
           ticket.alcance_correo,
-          ticket.approval_status,
-          ticket.rejection_reason,
+          ticket.subcategoria_atencion,
           ticket.responsables.join(" ")
         ].join(" ").toLowerCase();
         if (!haystack.includes(search)) return false;
       }
       return true;
     });
-  }, [isAdmin, profile.resource_name, tickets, ticketApprovalFilter, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
+  }, [isAdmin, profile.resource_name, tickets, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
 
   function clearTicketFilters() {
     setTicketSearch("");
     setTicketStatusFilter("Todos");
-    setTicketApprovalFilter("Todos");
     setTicketTypeFilter("Todos");
     setTicketResponsibleFilter("Todos");
     setTicketDateFrom(today());
@@ -89,8 +95,16 @@ export function TicketsView({
   }
 
   function normalizeTicket(values: Ticket): Ticket {
+    const automaticState = values.fecha_termino < today()
+      ? "Cerrado"
+      : values.estado === "Cerrado"
+        ? "Cerrado"
+        : "En Proceso";
     return {
       ...values,
+      estado: automaticState,
+      approval_status: "Aprobado",
+      rejection_reason: "",
       tipo_tck: values.responsables.length > 1 ? "Grupal" : "Personal"
     };
   }
@@ -119,12 +133,24 @@ export function TicketsView({
       ticket.fecha_recepcion,
       ticket.alcance_correo,
       ticket.tipo_atencion,
+      ticket.subcategoria_atencion,
       ticket.estado,
       ticket.fecha_termino,
-      ticket.tipo_tck
+      ticket.tipo_tck,
+      ticket.en_servicio,
+      ticket.aplicativo_se_encuentra
     ];
     if (required.some((value) => !String(value ?? "").trim())) return "Todos los campos del ticket son obligatorios.";
-    if (ticket.approval_status === "Rechazado" && !ticket.rejection_reason.trim()) return "El motivo de rechazo es obligatorio.";
+    if (ticket.fecha_termino < ticket.fecha_solicitud) return "La fecha termino no puede ser anterior a la fecha inicio.";
+    if (ticket.fecha_termino < today() && ticket.estado !== "Cerrado") return "Si la fecha termino es anterior a hoy, el estado debe ser Cerrado.";
+    if (ticket.fecha_termino >= today() && !["Cerrado", "En Proceso"].includes(ticket.estado)) return "Si la fecha termino es hoy o futura, el estado debe ser Cerrado o En Proceso.";
+    const maxDays = ticketMaxDaysByType[ticket.tipo_atencion];
+    if (maxDays) {
+      const start = new Date(`${ticket.fecha_solicitud}T00:00:00`);
+      const end = new Date(`${ticket.fecha_termino}T00:00:00`);
+      const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+      if (days > maxDays) return `${ticket.tipo_atencion} permite maximo ${maxDays} dias.`;
+    }
     if (!isAdmin && ticket.responsables.some((resource) => !responsibleOptions.includes(resource))) {
       return "Solo puedes asignar recursos de tus equipos.";
     }
@@ -145,7 +171,7 @@ export function TicketsView({
     try {
       const normalizedTicket = { ...ticketToSave, subject_correo: ticketToSave.alcance_correo };
       if (isAdmin) await saveTickets([normalizedTicket]);
-      else await requestTicket({ ...normalizedTicket, approval_status: "Pendiente", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
+      else await requestTicket({ ...normalizedTicket, approval_status: "Aprobado", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
       setTicketMessage(successMessage);
       setDraftTicket(newDraftTicket());
       setEditingTicket(null);
@@ -167,21 +193,58 @@ export function TicketsView({
     }
   }
 
-  async function reviewTicket(ticket: Ticket, approvalStatus: "Aprobado" | "Rechazado") {
-    const rejectionReason = approvalStatus === "Rechazado"
-      ? window.prompt("Motivo de rechazo")?.trim() ?? ""
-      : "";
-    if (approvalStatus === "Rechazado" && !rejectionReason) {
-      setTicketMessage("El motivo de rechazo es obligatorio.");
+  function openQuickEntry(ticket: Ticket) {
+    setQuickTicket(ticket);
+    setQuickDate(ticket.fecha_solicitud <= today() && today() <= ticket.fecha_termino ? today() : ticket.fecha_solicitud);
+    setQuickHours(0);
+    setQuickMessage("");
+  }
+
+  async function saveQuickEntry() {
+    if (!quickTicket) return;
+    if (!profile.resource_name) {
+      setQuickMessage("Tu usuario no tiene recurso asignado.");
+      return;
+    }
+    if (!quickTicket.responsables.includes(profile.resource_name)) {
+      setQuickMessage("Solo puedes registrar horas en tickets asignados a tu usuario.");
+      return;
+    }
+    if (!ticketMatchesReportPeriod(quickTicket, quickDate)) {
+      setQuickMessage(`La fecha de reporte debe estar entre ${quickTicket.fecha_solicitud} y ${quickTicket.fecha_termino}.`);
+      return;
+    }
+    if (quickHours <= 0 || quickHours > 8) {
+      setQuickMessage(hourValidationMessage);
       return;
     }
 
+    const entry: TimeEntry = {
+      id: crypto.randomUUID(),
+      fecha_reporte: quickDate,
+      codigo_tck: quickTicket.codigo_tck,
+      usuario_reporta: quickTicket.usuario_solicitante,
+      recurso: profile.resource_name,
+      aplicativo: quickTicket.sistema,
+      fecha_inicio: quickTicket.fecha_solicitud,
+      fecha_fin: quickTicket.fecha_termino,
+      descripcion: quickTicket.alcance_correo,
+      sociedad: quickTicket.formato,
+      tipo_atencion: `${quickTicket.tipo_atencion} - ${quickTicket.subcategoria_atencion}`,
+      horas_invertidas: quickHours,
+      estado_tck: quickTicket.estado === "Cancelado" ? "Pendiente" : quickTicket.estado,
+      en_servicio: quickTicket.en_servicio,
+      aplicativo_se_encuentra: quickTicket.aplicativo_se_encuentra,
+      modificado: new Date().toISOString()
+    };
+
     try {
-      await saveTickets([{ ...ticket, approval_status: approvalStatus, rejection_reason: rejectionReason }]);
-      setTicketMessage(approvalStatus === "Aprobado" ? "Ticket aprobado." : "Ticket rechazado.");
+      await saveEntry(entry);
+      setQuickMessage("Horas registradas con exito.");
+      setQuickHours(0);
       onChanged();
     } catch (error) {
-      setTicketMessage(error instanceof Error ? error.message : "No se pudo revisar ticket.");
+      setQuickMessage(error instanceof Error ? error.message : "No se pudo registrar horas.");
     }
   }
 
@@ -190,13 +253,13 @@ export function TicketsView({
       <div className="section-head">
         <div>
           <h2>Tickets</h2>
-          <p className="muted">{isAdmin ? "Gestiona tickets, responsables y aprobaciones." : "Solicita tickets y consulta el estado de aprobacion."}</p>
+          <p className="muted">Gestiona tickets y registra horas directamente desde cada ticket.</p>
         </div>
       </div>
 
       <div className="segmented">
         <button className={ticketView === "crear" ? "active" : ""} type="button" onClick={() => { setTicketMessage(""); setDraftTicket(newDraftTicket()); setTicketView("crear"); }}>
-          {isAdmin ? "Crear ticket" : "Solicitar ticket"}
+          Crear ticket
         </button>
         <button className={ticketView === "listado" ? "active" : ""} type="button" onClick={() => { setTicketMessage(""); setTicketView("listado"); }}>Listado de tickets</button>
       </div>
@@ -209,11 +272,11 @@ export function TicketsView({
           masters={masters}
           onPatch={patchDraft}
           onToggleResponsible={(resource) => toggleTicketResponsible(draftTicket, resource, patchDraft)}
-          submitLabel={isAdmin ? "Crear ticket" : "Enviar solicitud"}
-          onSubmit={() => persistTicket(draftTicket, isAdmin ? "Ticket creado." : "Solicitud enviada para aprobacion.")}
-          canEditApproval={isAdmin}
+          submitLabel="Crear ticket"
+          onSubmit={() => persistTicket(draftTicket, "Ticket creado.")}
           showReceptionDate={false}
           resourceOptions={responsibleOptions}
+          applicationOptions={visibleApplications}
         />
       )}
 
@@ -229,15 +292,14 @@ export function TicketsView({
                 </div>
               </label>
               <SelectField label="Estado" value={ticketStatusFilter} options={["Todos", ...ticketEstados]} onChange={setTicketStatusFilter} />
-              <SelectField label="Aprobacion" value={ticketApprovalFilter} options={["Todos", ...ticketApprovalStatuses]} onChange={setTicketApprovalFilter} />
               <SelectField label="Tipo" value={ticketTypeFilter} options={["Todos", ...ticketAttentionTypes]} onChange={setTicketTypeFilter} />
               <SelectField label="Responsable" value={ticketResponsibleFilter} options={["Todos", ...responsibleOptions]} onChange={setTicketResponsibleFilter} />
               <label>
-                Desde recepcion
+                Desde inicio
                 <input type="date" value={ticketDateFrom} onChange={(event) => setTicketDateFrom(event.target.value)} />
               </label>
               <label>
-                Hasta recepcion
+                Hasta inicio
                 <input type="date" value={ticketDateTo} onChange={(event) => setTicketDateTo(event.target.value)} />
               </label>
             </div>
@@ -253,10 +315,43 @@ export function TicketsView({
               submitLabel="Guardar ticket"
               onSubmit={() => persistTicket(editingTicket, "Ticket actualizado.")}
               onClose={() => setEditingTicket(null)}
-              canEditApproval
               showReceptionDate
               resourceOptions={responsibleOptions}
+              applicationOptions={visibleApplications}
             />
+          )}
+
+          {quickTicket && (
+            <div className="card grid quick-hours-card">
+              <div className="section-head compact">
+                <div>
+                  <h3>Registrar horas en {quickTicket.codigo_tck}</h3>
+                  <p className="muted">{quickTicket.sistema} · {quickTicket.fecha_solicitud} a {quickTicket.fecha_termino}</p>
+                </div>
+                <button className="secondary" type="button" onClick={() => setQuickTicket(null)}>Cerrar</button>
+              </div>
+              <div className="grid grid-3">
+                <label>
+                  Fecha reporte
+                  <input type="date" value={quickDate} onChange={(event) => setQuickDate(event.target.value)} />
+                </label>
+                <label>
+                  Horas
+                  <input
+                    type="number"
+                    min="0.5"
+                    max="8"
+                    step="0.5"
+                    value={quickHours}
+                    onInvalid={showHourValidation}
+                    onInput={clearHourValidation}
+                    onChange={(event) => setQuickHours(Number(event.target.value))}
+                  />
+                </label>
+                <button type="button" onClick={saveQuickEntry}><Save size={16} /> Guardar horas</button>
+              </div>
+              {quickMessage && <div className="notice">{quickMessage}</div>}
+            </div>
           )}
 
           <div className="card table-card tickets-table">
@@ -264,61 +359,50 @@ export function TicketsView({
               <thead>
                 <tr>
                   <th>Codigo</th>
-                  <th>Recepcion</th>
+                  <th>Inicio</th>
                   <th>Termino</th>
                   <th>Sistema</th>
                   <th>Formato</th>
                   <th>Solicitante</th>
                   <th>Tipo</th>
+                  <th>Subcategoria</th>
                   <th>Estado</th>
-                  <th>Aprobacion</th>
-                  <th>Motivo de Rechazo</th>
                   <th>Responsables</th>
                   <th>Detalle</th>
-                  {isAdmin && <th></th>}
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredTickets.map((ticket) => (
                   <tr key={ticket.id}>
                     <td>{ticket.codigo_tck}</td>
-                    <td>{ticket.fecha_recepcion}</td>
+                    <td>{ticket.fecha_solicitud}</td>
                     <td>{ticket.fecha_termino}</td>
                     <td>{ticket.sistema}</td>
                     <td className="description-cell">{ticket.formato}</td>
                     <td>{ticket.usuario_solicitante}</td>
                     <td>{ticket.tipo_atencion}</td>
+                    <td>{ticket.subcategoria_atencion}</td>
                     <td><span className={`status ${ticket.estado === "Cerrado" ? "closed" : "progress"}`}>{ticket.estado}</span></td>
-                    <td>
-                      <span className={`status ${ticket.approval_status === "Aprobado" ? "closed" : "progress"}`}>
-                        {ticket.approval_status}
-                      </span>
-                    </td>
-                    <td className="description-cell">{ticket.approval_status === "Rechazado" ? ticket.rejection_reason : ""}</td>
                     <td className="description-cell">{ticket.responsables.join("; ")}</td>
                     <td className="description-cell">{ticket.alcance_correo}</td>
-                    {isAdmin && (
-                      <td>
-                        <div className="row-actions">
-                          <button className="secondary icon-button" type="button" title="Editar ticket" onClick={() => { setEditingTicket(ticket); setTicketMessage(""); }}>
-                            <Pencil size={16} />
-                          </button>
-                          {ticket.approval_status === "Pendiente" && (
-                            <>
-                              <button className="secondary icon-button" type="button" title="Aprobar ticket" onClick={() => reviewTicket(ticket, "Aprobado")}>
-                                <Check size={16} />
-                              </button>
-                              <button className="secondary icon-button" type="button" title="Rechazar ticket" onClick={() => reviewTicket(ticket, "Rechazado")}>
-                                <XCircle size={16} />
-                              </button>
-                            </>
-                          )}
-                          <button className="secondary icon-button" type="button" title="Eliminar ticket" onClick={() => deleteTicket(ticket)}>
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    )}
+                    <td>
+                      <div className="row-actions">
+                        <button className="secondary icon-button" type="button" title="Registrar horas" onClick={() => openQuickEntry(ticket)}>
+                          <Clock size={16} />
+                        </button>
+                        {isAdmin && (
+                          <>
+                            <button className="secondary icon-button" type="button" title="Editar ticket" onClick={() => { setEditingTicket(ticket); setTicketMessage(""); }}>
+                              <Pencil size={16} />
+                            </button>
+                            <button className="secondary icon-button" type="button" title="Eliminar ticket" onClick={() => deleteTicket(ticket)}>
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
