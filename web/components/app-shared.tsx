@@ -229,6 +229,7 @@ export function TicketForm({
   resourceOptions?: string[];
 }) {
   const responsibleOptions = resourceOptions ?? masters.recursos;
+  const isNewTicket = !ticket.codigo_tck || ticket.id.startsWith("new-");
 
   return (
     <div className="card grid ticket-form-card">
@@ -291,10 +292,12 @@ export function TicketForm({
             Fecha solicitud
             <input type="date" value={ticket.fecha_solicitud} onChange={(event) => onPatch({ fecha_solicitud: event.target.value })} />
           </label>
-          <label>
-            Fecha recepcion
-            <input type="date" value={ticket.fecha_recepcion} onChange={(event) => onPatch({ fecha_recepcion: event.target.value })} />
-          </label>
+          {!isNewTicket && (
+            <label>
+              Fecha recepcion
+              <input type="date" value={ticket.fecha_recepcion} onChange={(event) => onPatch({ fecha_recepcion: event.target.value })} />
+            </label>
+          )}
           <label>
             Fecha termino
             <input type="date" value={ticket.fecha_termino} onChange={(event) => onPatch({ fecha_termino: event.target.value })} />

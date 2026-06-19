@@ -134,13 +134,16 @@ export function TicketsView({
   }
 
   async function persistTicket(ticket: Ticket, successMessage: string) {
-    const validation = validateTicketForm(ticket);
+    const ticketToSave = ticket.id.startsWith("new-")
+      ? { ...ticket, fecha_recepcion: today() }
+      : ticket;
+    const validation = validateTicketForm(ticketToSave);
     if (validation) {
       setTicketMessage(validation);
       return;
     }
     try {
-      const normalizedTicket = { ...ticket, subject_correo: ticket.alcance_correo };
+      const normalizedTicket = { ...ticketToSave, subject_correo: ticketToSave.alcance_correo };
       if (isAdmin) await saveTickets([normalizedTicket]);
       else await requestTicket({ ...normalizedTicket, approval_status: "Pendiente", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
       setTicketMessage(successMessage);

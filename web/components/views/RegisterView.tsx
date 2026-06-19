@@ -27,6 +27,21 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
     setEntry((current) => ({ ...current, ...values }));
   }
 
+  function applyTicketDefaults(code: string) {
+    const normalizedCode = code.trim().toUpperCase();
+    const selectedTicket = approvedTickets.find((ticket) => ticket.codigo_tck.toUpperCase() === normalizedCode);
+    patch({
+      codigo_tck: normalizedCode,
+      ...(selectedTicket
+        ? {
+            aplicativo: selectedTicket.sistema,
+            sociedad: selectedTicket.formato,
+            usuario_reporta: selectedTicket.usuario_solicitante
+          }
+        : {})
+    });
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!entry.codigo_tck || !entry.sociedad || !entry.horas_invertidas) {
@@ -66,7 +81,7 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
       <div className="form-band">
         <h3>Datos generales</h3>
         <div className="grid grid-3">
-          <TicketCodeField label="Codigo TCK" value={entry.codigo_tck} tickets={approvedTickets} onChange={(value) => patch({ codigo_tck: value })} />
+          <TicketCodeField label="Codigo TCK" value={entry.codigo_tck} tickets={approvedTickets} onChange={applyTicketDefaults} />
           <label>
             Fecha de reporte
             <input type="date" value={entry.fecha_reporte} onChange={(e) => patch({ fecha_reporte: e.target.value })} />
@@ -77,7 +92,7 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
       <div className="form-band">
         <h3>Clasificacion</h3>
         <div className="grid grid-3 register-classification">
-          <SelectField label="Recurso" value={entry.recurso} options={masters.recursos} disabled={profile.role === "trabajador"} onChange={(v) => patch({ recurso: v })} />
+          <SelectField label="Recurso" value={entry.recurso} options={masters.recursos} disabled={["trabajador", "trabajador_aplicaciones"].includes(profile.role)} onChange={(v) => patch({ recurso: v })} />
           <SelectField label="Aplicativo" value={entry.aplicativo} options={masters.aplicaciones} onChange={(v) => patch({ aplicativo: v })} />
           <MultiSelectField label="Sociedad" value={entry.sociedad} options={masters.sociedades} onChange={(v) => patch({ sociedad: v })} />
         </div>
