@@ -306,7 +306,7 @@ export function AdminView({
               <span className="pill">{masterKey === "attentionRules" ? localMasters.attentionRules.length : localMasters[masterKey].length} valores</span>
             </div>
             {masterKey === "attentionRules" ? (
-              <div className="notice">Define el maximo de dias permitidos por tipo de atencion. Deja vacio si no tiene limite.</div>
+              <div className="notice inline-notice">Define el maximo de dias permitidos por tipo de atencion. Deja vacio si no tiene limite.</div>
             ) : masterKey === "aplicaciones" ? (
               <div className="app-create-panel">
                 <label>
