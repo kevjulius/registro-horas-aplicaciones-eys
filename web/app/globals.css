@@ -725,6 +725,53 @@ section.grid > button:not(.icon-button) {
   min-height: 42px;
 }
 
+.team-assignment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.assignment-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.assignment-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.assignment-head small {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.compact-team-select {
+  max-height: 220px;
+  overflow: auto;
+  align-content: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 10px;
+}
+
+.compact-team-select button {
+  min-height: 28px;
+  padding: 5px 9px;
+  font-size: 11px;
+  border-radius: 8px;
+  text-align: left;
+}
+
 .ticket-form-grid {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) minmax(320px, 1.25fr);
@@ -847,6 +894,7 @@ section.grid > button:not(.icon-button) {
   .admin-layout,
   .admin-layout:has(.app-master-values),
   .app-create-panel,
+  .team-assignment-grid,
   .ticket-form-grid {
     grid-template-columns: 1fr;
   }

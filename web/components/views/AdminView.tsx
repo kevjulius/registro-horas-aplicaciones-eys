@@ -40,6 +40,7 @@ export function AdminView({
     service: "",
     fecha_creacion: ""
   });
+  const [teamFilters, setTeamFilters] = useState<Record<string, { resources: string; applications: string; profiles: string }>>({});
   const [adminMessage, setAdminMessage] = useState("");
   const [newUser, setNewUser] = useState<Profile>({
     id: `new-${crypto.randomUUID()}`,
@@ -258,6 +259,26 @@ export function AdminView({
       ? (team.applications ?? []).filter((item) => item !== application)
       : [...(team.applications ?? []), application];
     patchTeam(index, { applications });
+  }
+
+  function teamFilter(team: Team, key: "resources" | "applications" | "profiles") {
+    return teamFilters[team.id]?.[key] ?? "";
+  }
+
+  function setTeamFilter(team: Team, key: "resources" | "applications" | "profiles", value: string) {
+    setTeamFilters((current) => ({
+      ...current,
+      [team.id]: {
+        resources: current[team.id]?.resources ?? "",
+        applications: current[team.id]?.applications ?? "",
+        profiles: current[team.id]?.profiles ?? "",
+        [key]: value
+      }
+    }));
+  }
+
+  function filterText(value: string, filter: string) {
+    return value.toLowerCase().includes(filter.trim().toLowerCase());
   }
 
   function removeTeam(index: number) {
@@ -521,11 +542,15 @@ export function AdminView({
                       <Trash2 size={16} />
                     </button>
                   </div>
-                  <div className="grid grid-3">
-                    <label>
-                      Recursos visibles
-                      <div className="multi-select team-select">
-                        {masters.recursos.map((resource) => (
+                  <div className="team-assignment-grid">
+                    <div className="assignment-panel">
+                      <div className="assignment-head">
+                        <span>Recursos visibles</span>
+                        <small>{team.resources.length} seleccionados</small>
+                      </div>
+                      <input value={teamFilter(team, "resources")} onChange={(event) => setTeamFilter(team, "resources", event.target.value)} placeholder="Buscar recurso..." />
+                      <div className="multi-select team-select compact-team-select">
+                        {masters.recursos.filter((resource) => filterText(resource, teamFilter(team, "resources"))).map((resource) => (
                           <button
                             key={resource}
                             type="button"
@@ -536,11 +561,15 @@ export function AdminView({
                           </button>
                         ))}
                       </div>
-                    </label>
-                    <label>
-                      Sistemas visibles
-                      <div className="multi-select team-select">
-                        {masters.aplicaciones.map((application) => (
+                    </div>
+                    <div className="assignment-panel">
+                      <div className="assignment-head">
+                        <span>Sistemas visibles</span>
+                        <small>{(team.applications ?? []).length} seleccionados</small>
+                      </div>
+                      <input value={teamFilter(team, "applications")} onChange={(event) => setTeamFilter(team, "applications", event.target.value)} placeholder="Buscar sistema..." />
+                      <div className="multi-select team-select compact-team-select">
+                        {masters.aplicaciones.filter((application) => filterText(application, teamFilter(team, "applications"))).map((application) => (
                           <button
                             key={application}
                             type="button"
@@ -551,11 +580,15 @@ export function AdminView({
                           </button>
                         ))}
                       </div>
-                    </label>
-                    <label>
-                      Miembros
-                      <div className="multi-select team-select">
-                        {localProfiles.map((user) => (
+                    </div>
+                    <div className="assignment-panel">
+                      <div className="assignment-head">
+                        <span>Miembros</span>
+                        <small>{team.profile_ids.length} seleccionados</small>
+                      </div>
+                      <input value={teamFilter(team, "profiles")} onChange={(event) => setTeamFilter(team, "profiles", event.target.value)} placeholder="Buscar miembro..." />
+                      <div className="multi-select team-select compact-team-select">
+                        {localProfiles.filter((user) => filterText(user.display_name, teamFilter(team, "profiles"))).map((user) => (
                           <button
                             key={user.id}
                             type="button"
@@ -566,7 +599,7 @@ export function AdminView({
                           </button>
                         ))}
                       </div>
-                    </label>
+                    </div>
                   </div>
                 </div>
               ))}
