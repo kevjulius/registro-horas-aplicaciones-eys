@@ -50,6 +50,18 @@ function uniqueClean(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const payload = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    return [payload.message, payload.details, payload.hint, payload.code]
+      .filter(Boolean)
+      .map(String)
+      .join(" | ") || fallback;
+  }
+  return fallback;
+}
+
 async function readMasters(supabase: ReturnType<typeof adminClient>): Promise<MasterData> {
   const [resources, reporters, companies, apps, attention, attentionRules] = await Promise.all([
     supabase.from("resources").select("name").eq("active", true).order("name"),
@@ -149,7 +161,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ masters: await readMasters(supabase) });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "No se pudo guardar maestras." },
+      { error: errorMessage(error, "No se pudo guardar maestras.") },
       { status: 500 }
     );
   }

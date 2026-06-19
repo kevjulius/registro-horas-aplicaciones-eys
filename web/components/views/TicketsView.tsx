@@ -248,7 +248,8 @@ export function TicketsView({
 
     try {
       await saveEntry(entry);
-      setQuickMessage("Horas registradas con exito.");
+      setTicketMessage("Horas registradas con exito.");
+      setQuickMessage("");
       setQuickHours(0);
       setQuickDescription("");
       setQuickTicket(null);

@@ -4,21 +4,11 @@ import { ticketPeriodValidationMessage, ticketMatchesReportPeriod } from "./tick
 export const bulkHeaders = [
   "fecha_reporte",
   "codigo_tck",
-  "usuario_reporta",
-  "recurso",
-  "aplicativo",
-  "fecha_inicio",
-  "fecha_fin",
   "descripcion",
-  "sociedad",
-  "tipo_atencion",
-  "horas_invertidas",
-  "estado_tck",
-  "servicio_integracion",
-  "aplicativo_activo"
+  "horas_invertidas"
 ];
 
-const required = bulkHeaders.filter((header) => !["fecha_fin", "descripcion"].includes(header));
+const required = bulkHeaders.filter((header) => !["descripcion"].includes(header));
 
 const headerAliases: Record<string, string> = {
   en_servicio: "servicio_integracion",
@@ -60,42 +50,25 @@ export function parseBulkText(text: string, masters: MasterData, tickets: Ticket
     const values = splitLine(line);
     const row = Object.fromEntries(headers.map((header, i) => [header, values[i]?.trim() ?? ""]));
     const rowErrors: string[] = [];
-    const usuario = exact(row.usuario_reporta, masters.usuariosReporta);
-    const recurso = exact(row.recurso, masters.recursos);
-    const aplicativo = exact(row.aplicativo, masters.aplicaciones);
-    const tipo = exact(row.tipo_atencion, masters.tiposAtencion);
     const ticketCode = row.codigo_tck.trim().toUpperCase();
     const ticket = tickets.find((item) => item.codigo_tck.toUpperCase() === ticketCode);
-    const sociedades = row.sociedad
-      .split("|")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const sociedadesValidas = sociedades.map((item) => exact(item, masters.sociedades));
     const horas = Number(row.horas_invertidas);
+    const resourceName = profile?.resource_name ?? "";
 
     if (!isIsoDate(row.fecha_reporte)) rowErrors.push(`fecha_reporte debe tener formato aaaa-mm-dd: ${row.fecha_reporte}`);
-    if (!isIsoDate(row.fecha_inicio)) rowErrors.push(`fecha_inicio debe tener formato aaaa-mm-dd: ${row.fecha_inicio}`);
-    if (row.fecha_fin && !isIsoDate(row.fecha_fin)) rowErrors.push(`fecha_fin debe tener formato aaaa-mm-dd: ${row.fecha_fin}`);
-    if (!usuario) rowErrors.push(`usuario_reporta no existe: ${row.usuario_reporta}`);
     if (!ticket) rowErrors.push(`codigo_tck no existe o no esta asignado al usuario: ${row.codigo_tck}`);
     if (ticket && ticket.approval_status !== "Aprobado") rowErrors.push(`codigo_tck no esta aprobado para registrar horas: ${row.codigo_tck}`);
     if (ticket && isIsoDate(row.fecha_reporte) && !ticketMatchesReportPeriod(ticket, row.fecha_reporte)) {
       rowErrors.push(ticketPeriodValidationMessage(ticket, row.fecha_reporte));
     }
-    if (!recurso) rowErrors.push(`recurso no existe: ${row.recurso}`);
-    if (!aplicativo) rowErrors.push(`aplicativo no existe: ${row.aplicativo}`);
-    if (!tipo) rowErrors.push(`tipo_atencion no existe: ${row.tipo_atencion}`);
-    if (!sociedades.length || sociedadesValidas.some((item) => !item)) rowErrors.push(`sociedad invalida: ${row.sociedad}`);
     if (!horas || horas <= 0) rowErrors.push("horas_invertidas debe ser mayor a cero");
     if (horas > 8) rowErrors.push("horas_invertidas no puede ser mayor a 8");
-    if (!["En Proceso", "Cerrado", "Pendiente"].includes(row.estado_tck)) rowErrors.push(`estado_tck invalido: ${row.estado_tck}`);
-    if (!["Si", "No"].includes(row.servicio_integracion)) rowErrors.push(`servicio_integracion invalido: ${row.servicio_integracion}`);
-    if (!["Si", "No"].includes(row.aplicativo_activo)) rowErrors.push(`aplicativo_activo invalido: ${row.aplicativo_activo}`);
-    if (profile?.role === "trabajador" && recurso && recurso !== profile.resource_name) {
-      rowErrors.push(`recurso no corresponde a tu usuario: ${row.recurso}`);
-    }
-    if (profile?.role === "trabajador" && ticket && !ticket.responsables.includes(profile.resource_name ?? "")) {
+    if (!resourceName) rowErrors.push("Tu usuario no tiene recurso asignado.");
+    if (ticket && resourceName && !ticket.responsables.includes(resourceName)) {
       rowErrors.push(`codigo_tck no esta asignado a tu usuario: ${row.codigo_tck}`);
+    }
+    if (ticket && ticket.formato.split("|").map((item) => item.trim()).some((item) => item && !exact(item, masters.sociedades))) {
+      rowErrors.push(`el ticket tiene una sociedad que no existe en maestras: ${ticket.formato}`);
     }
 
     if (rowErrors.length) {
@@ -107,18 +80,18 @@ export function parseBulkText(text: string, masters: MasterData, tickets: Ticket
       id: crypto.randomUUID(),
       fecha_reporte: row.fecha_reporte,
       codigo_tck: ticketCode,
-      usuario_reporta: usuario!,
-      recurso: recurso!,
-      aplicativo: aplicativo!,
-      fecha_inicio: row.fecha_inicio,
-      fecha_fin: row.fecha_fin,
+      usuario_reporta: ticket!.usuario_solicitante,
+      recurso: resourceName,
+      aplicativo: ticket!.sistema,
+      fecha_inicio: ticket!.fecha_solicitud,
+      fecha_fin: ticket!.fecha_termino,
       descripcion: row.descripcion ?? "",
-      sociedad: sociedadesValidas.join(" | "),
-      tipo_atencion: tipo!,
+      sociedad: ticket!.formato,
+      tipo_atencion: `${ticket!.tipo_atencion} - ${ticket!.subcategoria_atencion}`,
       horas_invertidas: horas,
-      estado_tck: row.estado_tck as TimeEntry["estado_tck"],
-      en_servicio: row.servicio_integracion as "Si" | "No",
-      aplicativo_se_encuentra: row.aplicativo_activo as "Si" | "No",
+      estado_tck: ticket!.estado === "Cancelado" ? "Pendiente" : ticket!.estado,
+      en_servicio: ticket!.en_servicio,
+      aplicativo_se_encuentra: ticket!.aplicativo_se_encuentra,
       modificado: new Date().toISOString()
     });
   });

@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { Download, X } from "lucide-react";
 import { bulkHeaders, parseBulkText } from "@/lib/bulk";
 import { saveEntries } from "@/lib/repository";
-import { estados, siNo } from "@/components/app-shared";
 import type { MasterData, Profile, Ticket } from "@/lib/types";
 
 function xmlCell(value: string | number) {
@@ -58,15 +57,13 @@ function listValidation(columnName: string, namedList: string, rows = 500) {
   </DataValidation>`;
 }
 
-function downloadBulkTemplate(masters: MasterData) {
+function downloadBulkTemplate(tickets: Ticket[]) {
+  const ticketsForTemplate = tickets
+    .filter((ticket) => ticket.approval_status === "Aprobado")
+    .map((ticket) => ticket.codigo_tck)
+    .sort((a, b) => a.localeCompare(b));
   const validations = [
-    listValidation("usuario_reporta", "lista_usuarios_reporta"),
-    listValidation("recurso", "lista_recursos"),
-    listValidation("aplicativo", "lista_aplicativos"),
-    listValidation("tipo_atencion", "lista_tipos_atencion"),
-    listValidation("estado_tck", "lista_estados"),
-    listValidation("servicio_integracion", "lista_si_no"),
-    listValidation("aplicativo_activo", "lista_si_no")
+    listValidation("codigo_tck", "lista_tickets")
   ].join("");
 
   const blankRows = Array.from({ length: 499 }, () => bulkHeaders.map(() => ""));
@@ -83,26 +80,14 @@ function downloadBulkTemplate(masters: MasterData) {
     </Style>
   </Styles>
   <Names>
-    ${namedRange("lista_recursos", "Recursos", masters.recursos.length)}
-    ${namedRange("lista_usuarios_reporta", "Usuarios reporta", masters.usuariosReporta.length)}
-    ${namedRange("lista_aplicativos", "Aplicativos", masters.aplicaciones.length)}
-    ${namedRange("lista_sociedades", "Sociedades", masters.sociedades.length)}
-    ${namedRange("lista_tipos_atencion", "Tipos atencion", masters.tiposAtencion.length)}
-    ${namedRange("lista_estados", "Estados", estados.length)}
-    ${namedRange("lista_si_no", "Si No", siNo.length)}
+    ${namedRange("lista_tickets", "Tickets", ticketsForTemplate.length)}
   </Names>
-  ${xmlSheet("Plantilla", [bulkHeaders, ...blankRows], validations, { dateColumns: ["fecha_reporte", "fecha_inicio", "fecha_fin"] })}
-  ${xmlSheet("Recursos", [["recurso"], ...masters.recursos.map((item) => [item])], "", { hidden: true })}
-  ${xmlSheet("Usuarios reporta", [["usuario_reporta"], ...masters.usuariosReporta.map((item) => [item])], "", { hidden: true })}
-  ${xmlSheet("Aplicativos", [["aplicativo"], ...masters.aplicaciones.map((item) => [item])], "", { hidden: true })}
-  ${xmlSheet("Sociedades", [["sociedad"], ...masters.sociedades.map((item) => [item])], "", { hidden: true })}
-  ${xmlSheet("Tipos atencion", [["tipo_atencion"], ...masters.tiposAtencion.map((item) => [item])], "", { hidden: true })}
-  ${xmlSheet("Estados", [["estado_tck"], ...estados.map((item) => [item])], "", { hidden: true })}
-  ${xmlSheet("Si No", [["valor"], ...siNo.map((item) => [item])], "", { hidden: true })}
+  ${xmlSheet("Plantilla", [bulkHeaders, ...blankRows], validations, { dateColumns: ["fecha_reporte"] })}
+  ${xmlSheet("Tickets", [["codigo_tck"], ...ticketsForTemplate.map((item) => [item])], "", { hidden: true })}
   ${xmlSheet("Notas", [
     ["Campo", "Nota"],
-    ["sociedad", "Para una o varias sociedades, escribir valores exactos separados con |. Ejemplo: A124 - MAKRO | A125 - Food retail."],
-    ["fechas", "Usar formato YYYY-MM-DD."],
+    ["codigo_tck", "Usar un ticket existente y asignado a tu usuario."],
+    ["fecha_reporte", "Usar formato YYYY-MM-DD y respetar el rango del ticket."],
     ["horas_invertidas", "Usar numero mayor a cero y maximo 8."]
   ])}
 </Workbook>`;
@@ -122,7 +107,7 @@ export function BulkUploadView({ profile, masters, tickets, onSaved }: { profile
   const [text, setText] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const parsed = useMemo(() => (text.trim() ? parseBulkText(text, masters, tickets, profile) : { records: [], errors: [] }), [text, masters, tickets, profile]);
-  const blocked = profile.role === "trabajador" && parsed.records.some((record) => record.recurso !== profile.resource_name);
+  const blocked = ["trabajador", "trabajador_aplicaciones"].includes(profile.role) && parsed.records.some((record) => record.recurso !== profile.resource_name);
 
   async function save() {
     if (blocked || parsed.errors.length || !parsed.records.length) return;
@@ -140,7 +125,7 @@ export function BulkUploadView({ profile, masters, tickets, onSaved }: { profile
           <p className="muted">Descarga la plantilla para copiar/pegar las filas (incluyendo los titulos). El sistema validara el registro y mostrara los registros validos o con errores.</p>
         </div>
         <div className="toolbar">
-          <button className="secondary" type="button" onClick={() => downloadBulkTemplate(masters)}>
+          <button className="secondary" type="button" onClick={() => downloadBulkTemplate(tickets)}>
             <Download size={16} /> Descargar plantilla Excel
           </button>
           <button className="secondary" type="button" onClick={() => { setText(""); setSaveMessage(""); }}>
@@ -150,7 +135,7 @@ export function BulkUploadView({ profile, masters, tickets, onSaved }: { profile
       </div>
       <label>
         Pega aqui los datos copiados desde Excel
-        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="fecha_reporte	codigo_tck	usuario_reporta	..." />
+        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="fecha_reporte	codigo_tck	descripcion	horas_invertidas" />
       </label>
       {parsed.errors.length > 0 && <div className="notice">{parsed.errors.slice(0, 10).map((error) => <p key={error}>{error}</p>)}</div>}
       {blocked && <div className="notice">La carga contiene registros de otro recurso.</div>}
@@ -168,7 +153,7 @@ export function BulkUploadView({ profile, masters, tickets, onSaved }: { profile
           <table>
             <thead>
               <tr>
-                <th>Fecha</th><th>TCK</th><th>Usuario</th><th>Recurso</th><th>Aplicativo</th><th>Sociedad</th><th>Horas</th><th>Estado</th>
+                <th>Fecha</th><th>TCK</th><th>Descripcion</th><th>Horas</th><th>Recurso</th><th>Aplicativo</th><th>Estado</th>
               </tr>
             </thead>
             <tbody>
@@ -176,11 +161,10 @@ export function BulkUploadView({ profile, masters, tickets, onSaved }: { profile
                 <tr key={record.id}>
                   <td>{record.fecha_reporte}</td>
                   <td>{record.codigo_tck}</td>
-                  <td>{record.usuario_reporta}</td>
+                  <td>{record.descripcion}</td>
+                  <td>{record.horas_invertidas}</td>
                   <td>{record.recurso}</td>
                   <td>{record.aplicativo}</td>
-                  <td>{record.sociedad}</td>
-                  <td>{record.horas_invertidas}</td>
                   <td><span className={`status ${record.estado_tck === "Cerrado" ? "closed" : "progress"}`}>{record.estado_tck}</span></td>
                 </tr>
               ))}
