@@ -6,11 +6,8 @@ import {
   clearHourValidation,
   estados,
   hourValidationMessage,
-  MultiSelectField,
   SelectField,
   showHourValidation,
-  siNo,
-  TicketCodeField,
   ticketMatchesEntry,
   today
 } from "@/components/app-shared";
@@ -98,8 +95,8 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
   async function saveEditedEntry(event: React.FormEvent) {
     event.preventDefault();
     if (!editingEntry) return;
-    if (!editingEntry.codigo_tck || !editingEntry.sociedad || !editingEntry.horas_invertidas) {
-      setEditMessage("Completa TCK, sociedad y horas antes de guardar.");
+    if (!editingEntry.horas_invertidas) {
+      setEditMessage("Completa las horas antes de guardar.");
       return;
     }
     const selectedTicket = approvedTickets.find((ticket) => ticket.codigo_tck.toUpperCase() === editingEntry.codigo_tck.trim().toUpperCase());
@@ -179,21 +176,11 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
             </button>
           </div>
           {editMessage && <div className="notice">{editMessage}</div>}
-          <div className="grid grid-3">
-            <TicketCodeField label="Codigo TCK" value={editingEntry.codigo_tck} tickets={approvedTickets} onChange={(value) => patchEditing({ codigo_tck: value })} />
+          <div className="grid grid-2">
             <label>
               Fecha reporte
               <input type="date" value={editingEntry.fecha_reporte} onChange={(e) => patchEditing({ fecha_reporte: e.target.value })} />
             </label>
-            <SelectField label="Usuario que reporta" value={editingEntry.usuario_reporta} options={masters.usuariosReporta} onChange={(v) => patchEditing({ usuario_reporta: v })} />
-          </div>
-          <div className="grid grid-3">
-            <SelectField label="Recurso" value={editingEntry.recurso} options={masters.recursos} disabled={profile.role === "trabajador"} onChange={(v) => patchEditing({ recurso: v })} />
-            <SelectField label="Aplicativo" value={editingEntry.aplicativo} options={masters.aplicaciones} onChange={(v) => patchEditing({ aplicativo: v })} />
-            <MultiSelectField label="Sociedad" value={editingEntry.sociedad} options={masters.sociedades} onChange={(v) => patchEditing({ sociedad: v })} />
-          </div>
-          <div className="grid grid-2">
-            <SelectField label="Tipo de atencion" value={editingEntry.tipo_atencion} options={masters.tiposAtencion} onChange={(v) => patchEditing({ tipo_atencion: v })} />
             <label>
               Horas invertidas
               <input
@@ -207,21 +194,6 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
                 onChange={(e) => patchEditing({ horas_invertidas: Number(e.target.value) })}
               />
             </label>
-          </div>
-          <div className="grid grid-3">
-            <label>
-              Fecha inicio
-              <input type="date" value={editingEntry.fecha_inicio} onChange={(e) => patchEditing({ fecha_inicio: e.target.value })} />
-            </label>
-            <label>
-              Fecha fin
-              <input type="date" value={editingEntry.fecha_fin ?? ""} onChange={(e) => patchEditing({ fecha_fin: e.target.value })} />
-            </label>
-            <SelectField label="Estado TCK" value={editingEntry.estado_tck} options={estados} onChange={(v) => patchEditing({ estado_tck: v as TimeEntry["estado_tck"] })} />
-          </div>
-          <div className="grid grid-2">
-            <SelectField label="Es un servicio de la empresa" value={editingEntry.en_servicio} options={siNo} onChange={(v) => patchEditing({ en_servicio: v as "Si" | "No" })} />
-            <SelectField label="Aplicativo se encuentra operativo" value={editingEntry.aplicativo_se_encuentra} options={siNo} onChange={(v) => patchEditing({ aplicativo_se_encuentra: v as "Si" | "No" })} />
           </div>
           <label>
             Descripcion
