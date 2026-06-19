@@ -391,9 +391,9 @@ th {
   width: min(520px, calc(100vw - 32px));
   max-height: min(50vh, 420px);
   overflow: auto;
-  border: 1px solid #bae6fd;
-  background: #f0f9ff;
-  color: #075985;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
   border-radius: 12px;
   padding: 14px 16px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
@@ -415,6 +415,9 @@ th {
   width: auto;
   max-height: none;
   overflow: visible;
+  border-color: #bae6fd;
+  background: #f0f9ff;
+  color: #075985;
   box-shadow: none;
   animation: none;
 }
