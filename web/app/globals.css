@@ -857,6 +857,50 @@ section.grid > button:not(.icon-button) {
   overflow: hidden;
 }
 
+.dashboard-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.zero-resources-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  min-height: 330px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fafc;
+  padding: 16px;
+}
+
+.zero-resources-panel h4 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.zero-resource-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.zero-resource-list span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  background: #fff1f2;
+  color: #991b1b;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .expected-line {
   position: absolute;
   left: 18px;
@@ -948,6 +992,7 @@ section.grid > button:not(.icon-button) {
   .admin-layout,
   .admin-layout:has(.app-master-values),
   .app-create-panel,
+  .dashboard-content,
   .team-assignment-grid,
   .ticket-form-grid {
     grid-template-columns: 1fr;

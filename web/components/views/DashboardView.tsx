@@ -13,12 +13,14 @@ function HoursChart({
   title,
   subtitle,
   rows,
-  expectedHours
+  expectedHours,
+  zeroResources
 }: {
   title: string;
   subtitle: string;
   rows: ChartRow[];
   expectedHours: number;
+  zeroResources: string[];
 }) {
   const maxHours = Math.max(expectedHours, ...rows.map((row) => row.hours), 1);
   const chartTrackTop = 78;
@@ -41,26 +43,40 @@ function HoursChart({
           <span className="pill muted-pill">Debajo esperado: {belowExpected}</span>
         </div>
       </div>
-      <div className="dashboard-chart" style={{ "--expected-top": expectedLineTop } as React.CSSProperties}>
-        <div className="expected-line">
-          <span>{expectedHours}</span>
-        </div>
-        {rows.map((row) => {
-          const height = `${(row.hours / maxHours) * 100}%`;
-          return (
-            <div className="dashboard-bar-item" key={row.resource}>
-              <span className="bar-value">{row.hours}</span>
-              <div className="dashboard-bar-track">
-                <div
-                  className={row.hours >= expectedHours ? "dashboard-bar ok" : "dashboard-bar"}
-                  style={{ "--bar-height": height } as React.CSSProperties}
-                />
+      <div className="dashboard-content">
+        <div className="dashboard-chart" style={{ "--expected-top": expectedLineTop } as React.CSSProperties}>
+          <div className="expected-line">
+            <span>{expectedHours}</span>
+          </div>
+          {rows.map((row) => {
+            const height = `${(row.hours / maxHours) * 100}%`;
+            return (
+              <div className="dashboard-bar-item" key={row.resource}>
+                <span className="bar-value">{row.hours}</span>
+                <div className="dashboard-bar-track">
+                  <div
+                    className={row.hours >= expectedHours ? "dashboard-bar ok" : "dashboard-bar"}
+                    style={{ "--bar-height": height } as React.CSSProperties}
+                  />
+                </div>
+                <span className="bar-label">{row.resource}</span>
               </div>
-              <span className="bar-label">{row.resource}</span>
-            </div>
-          );
-        })}
-        {rows.length === 0 && <p className="muted">No hay horas registradas para esos filtros.</p>}
+            );
+          })}
+          {rows.length === 0 && <p className="muted">No hay horas registradas para esos filtros.</p>}
+        </div>
+        <aside className="zero-resources-panel">
+          <div>
+            <h4>Sin horas registradas</h4>
+            <span className="pill muted-pill">{zeroResources.length} recursos</span>
+          </div>
+          <div className="zero-resource-list">
+            {zeroResources.map((resource) => (
+              <span key={resource}>{resource}</span>
+            ))}
+            {zeroResources.length === 0 && <p className="muted">Todos registraron horas.</p>}
+          </div>
+        </aside>
       </div>
     </div>
   );
@@ -80,20 +96,27 @@ export function DashboardView({ entries, biEntries, teams }: { entries: TimeEntr
     });
   }, [entries, month, selectedTeam]);
 
+  const appResources = useMemo(() => {
+    if (selectedTeam) return selectedTeam.resources;
+    return Array.from(new Set(teams.flatMap((team) => team.resources))).sort((a, b) => a.localeCompare(b));
+  }, [selectedTeam, teams]);
+
   const appRows = useMemo(() => {
     const totals = new Map<string, number>();
     monthEntries.forEach((entry) => {
       totals.set(entry.recurso, (totals.get(entry.recurso) ?? 0) + Number(entry.horas_invertidas));
     });
 
-    const resources = selectedTeam
-      ? selectedTeam.resources
-      : Array.from(totals.keys()).sort((a, b) => a.localeCompare(b));
-
-    return resources
+    return appResources
       .map((resource) => ({ resource, hours: Number((totals.get(resource) ?? 0).toFixed(2)) }))
+      .filter((row) => row.hours > 0)
       .sort((a, b) => b.hours - a.hours || a.resource.localeCompare(b.resource));
-  }, [monthEntries, selectedTeam]);
+  }, [appResources, monthEntries]);
+
+  const appZeroResources = useMemo(() => {
+    const withHours = new Set(appRows.map((row) => row.resource));
+    return appResources.filter((resource) => !withHours.has(resource));
+  }, [appResources, appRows]);
 
   const biRows = useMemo(() => {
     const totals = new Map<string, number>();
@@ -106,6 +129,15 @@ export function DashboardView({ entries, biEntries, teams }: { entries: TimeEntr
       .map(([resource, hours]) => ({ resource, hours: Number(hours.toFixed(2)) }))
       .sort((a, b) => b.hours - a.hours || a.resource.localeCompare(b.resource));
   }, [biEntries, month]);
+
+  const biResources = useMemo(() => {
+    return Array.from(new Set(biEntries.map((entry) => entry.asignado_a))).sort((a, b) => a.localeCompare(b));
+  }, [biEntries]);
+
+  const biZeroResources = useMemo(() => {
+    const withHours = new Set(biRows.map((row) => row.resource));
+    return biResources.filter((resource) => !withHours.has(resource));
+  }, [biResources, biRows]);
 
   return (
     <section className="grid">
@@ -149,6 +181,7 @@ export function DashboardView({ entries, biEntries, teams }: { entries: TimeEntr
         subtitle={`Horas esperadas para el mes: ${expectedHours} hh por recurso.`}
         rows={appRows}
         expectedHours={expectedHours}
+        zeroResources={appZeroResources}
       />
 
       <HoursChart
@@ -156,6 +189,7 @@ export function DashboardView({ entries, biEntries, teams }: { entries: TimeEntr
         subtitle={`Horas esperadas para el mes: ${expectedHours} hh por recurso.`}
         rows={biRows}
         expectedHours={expectedHours}
+        zeroResources={biZeroResources}
       />
     </section>
   );
