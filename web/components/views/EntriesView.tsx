@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Download, Pencil, Save, Search, Trash2, X } from "lucide-react";
 import {
   clearHourValidation,
   estados,
   hourValidationMessage,
+  LoadingOverlay,
   SelectField,
   showHourValidation,
   ticketMatchesEntry,
-  today
+  today,
+  useAutoDismissNotice
 } from "@/components/app-shared";
 import { deleteEntry, saveEntry } from "@/lib/repository";
 import { ticketPeriodValidationMessage } from "@/lib/ticket-period";
@@ -62,8 +64,25 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editMessage, setEditMessage] = useState("");
   const [listMessage, setListMessage] = useState("");
+  const [editMessageType, setEditMessageType] = useState<"success" | "error">("error");
+  const [listMessageType, setListMessageType] = useState<"success" | "error">("success");
+  const [isBusy, setIsBusy] = useState(false);
   const [focusedEntryId, setFocusedEntryId] = useState("");
   const approvedTickets = useMemo(() => tickets.filter((ticket) => ticket.approval_status === "Aprobado"), [tickets]);
+  const clearListMessage = useCallback(() => setListMessage(""), []);
+  const clearEditMessage = useCallback(() => setEditMessage(""), []);
+  useAutoDismissNotice(listMessage, clearListMessage);
+  useAutoDismissNotice(editMessage, clearEditMessage);
+
+  function notifyList(text: string, type: "success" | "error") {
+    setListMessage(text);
+    setListMessageType(type);
+  }
+
+  function notifyEdit(text: string, type: "success" | "error") {
+    setEditMessage(text);
+    setEditMessageType(type);
+  }
 
   const resources = useMemo(() => Array.from(new Set(entries.map((entry) => entry.recurso))).sort(), [entries]);
   const filteredEntries = useMemo(() => {
@@ -80,8 +99,9 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
 
   async function remove(id: string) {
     try {
+      setIsBusy(true);
       await deleteEntry(id);
-      setListMessage("Registro eliminado correctamente.");
+      notifyList("Registro eliminado correctamente.", "success");
       if (editingEntry?.id === id) {
         setEditingEntry(null);
         setEditMessage("");
@@ -91,7 +111,9 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
       }
       onChanged();
     } catch (error) {
-      setListMessage(error instanceof Error ? error.message : "No se pudo eliminar el registro.");
+      notifyList(error instanceof Error ? error.message : "No se pudo eliminar el registro.", "error");
+    } finally {
+      setIsBusy(false);
     }
   }
 
@@ -112,39 +134,47 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
     event.preventDefault();
     if (!editingEntry) return;
     if (!editingEntry.horas_invertidas) {
-      setEditMessage("Completa las horas antes de guardar.");
+      notifyEdit("Completa las horas antes de guardar.", "error");
       return;
     }
     const selectedTicket = approvedTickets.find((ticket) => ticket.codigo_tck.toUpperCase() === editingEntry.codigo_tck.trim().toUpperCase());
     if (selectedTicket) {
       const periodMessage = ticketPeriodValidationMessage(selectedTicket, editingEntry.fecha_reporte);
       if (periodMessage) {
-        setEditMessage(periodMessage);
+        notifyEdit(periodMessage, "error");
         return;
       }
     }
     if (!approvedTickets.some((ticket) => ticketMatchesEntry(ticket, editingEntry, profile))) {
-      setEditMessage("Selecciona un ticket existente, aprobado y asignado a tu usuario.");
+      notifyEdit("Selecciona un ticket existente, aprobado y asignado a tu usuario.", "error");
       return;
     }
     if (editingEntry.horas_invertidas <= 0 || editingEntry.horas_invertidas > 8) {
-      setEditMessage(hourValidationMessage);
+      notifyEdit(hourValidationMessage, "error");
       return;
     }
-    await saveEntry({
-      ...editingEntry,
-      codigo_tck: editingEntry.codigo_tck.toUpperCase(),
-      modificado: new Date().toISOString()
-    });
-    setEditingEntry(null);
-    setEditMessage("");
-    setFocusedEntryId("");
-    setListMessage("Registro actualizado correctamente.");
-    onChanged();
+    try {
+      setIsBusy(true);
+      await saveEntry({
+        ...editingEntry,
+        codigo_tck: editingEntry.codigo_tck.toUpperCase(),
+        modificado: new Date().toISOString()
+      });
+      setEditingEntry(null);
+      setEditMessage("");
+      setFocusedEntryId("");
+      notifyList("Registro actualizado correctamente.", "success");
+      onChanged();
+    } catch (error) {
+      notifyEdit(error instanceof Error ? error.message : "No se pudo actualizar el registro.", "error");
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   return (
     <section className="grid">
+      <LoadingOverlay show={isBusy} />
       <div className="section-head">
         <div>
           <h2>Listado de Atenciones</h2>
@@ -153,16 +183,16 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
         <div className="toolbar">
           <span className="pill">Registros: {filteredEntries.length}</span>
           <span className="pill muted-pill">Horas: {filteredEntries.reduce((sum, entry) => sum + Number(entry.horas_invertidas), 0)}</span>
-          <button className="secondary" type="button" disabled={!filteredEntries.length} onClick={() => exportEntriesCsv(filteredEntries)}>
+          <button className="secondary" type="button" disabled={!filteredEntries.length || isBusy} onClick={() => exportEntriesCsv(filteredEntries)}>
             <Download size={16} /> Exportar CSV
           </button>
-          <button className="secondary" type="button" onClick={clearFilters}>
+          <button className="secondary" type="button" disabled={isBusy} onClick={clearFilters}>
             Limpiar filtros
           </button>
         </div>
       </div>
       <div className="card grid">
-        {listMessage && <div className="notice">{listMessage}</div>}
+        {listMessage && <div className={`notice ${listMessageType}`}>{listMessage}</div>}
         <div className="grid grid-5 filters">
           <SelectField label="Recurso" value={resourceFilter} options={["Todos", ...resources]} onChange={setResourceFilter} />
           <SelectField label="Estado" value={statusFilter} options={["Todos", ...estados]} onChange={setStatusFilter} />
@@ -190,11 +220,11 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
               <h3>Editar atencion</h3>
               <p className="muted">{editingEntry.codigo_tck}</p>
             </div>
-            <button className="secondary icon-button" type="button" onClick={() => { setEditingEntry(null); setEditMessage(""); setFocusedEntryId(""); }} title="Cerrar edicion">
+            <button className="secondary icon-button" type="button" disabled={isBusy} onClick={() => { setEditingEntry(null); setEditMessage(""); setFocusedEntryId(""); }} title="Cerrar edicion">
               <X size={16} />
             </button>
           </div>
-          {editMessage && <div className="notice">{editMessage}</div>}
+          {editMessage && <div className={`notice ${editMessageType}`}>{editMessage}</div>}
           <div className="grid grid-2">
             <label>
               Fecha reporte
@@ -218,7 +248,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
             Descripcion
             <textarea value={editingEntry.descripcion ?? ""} onChange={(e) => patchEditing({ descripcion: e.target.value })} />
           </label>
-          <button><Save size={16} /> Guardar cambios</button>
+          <button disabled={isBusy}><Save size={16} /> Guardar cambios</button>
         </form>
       )}
       <div className="card table-card">
@@ -243,10 +273,10 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
                 ))}
                 <td>
                   <div className="row-actions">
-                    <button className="secondary icon-button" onClick={() => { setEditingEntry(entry); setEditMessage(""); setListMessage(""); setFocusedEntryId(entry.id); }} title="Editar atencion">
+                    <button className="secondary icon-button" disabled={isBusy} onClick={() => { setEditingEntry(entry); setEditMessage(""); setListMessage(""); setFocusedEntryId(entry.id); }} title="Editar atencion">
                       <Pencil size={16} />
                     </button>
-                    <button className="secondary icon-button" onClick={() => remove(entry.id)} title="Eliminar atencion">
+                    <button className="secondary icon-button" disabled={isBusy} onClick={() => remove(entry.id)} title="Eliminar atencion">
                       <Trash2 size={16} />
                     </button>
                   </div>

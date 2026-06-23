@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Download, Save, Search } from "lucide-react";
-import { SelectField, clearHourValidation, hourValidationMessage, showHourValidation, today } from "@/components/app-shared";
-import { saveBiEntry } from "@/lib/repository";
+import { useCallback, useMemo, useState } from "react";
+import { Download, Pencil, Save, Search, Trash2, X } from "lucide-react";
+import { LoadingOverlay, SelectField, clearHourValidation, hourValidationMessage, showHourValidation, today, useAutoDismissNotice } from "@/components/app-shared";
+import { deleteBiEntry, saveBiEntry } from "@/lib/repository";
 import type { BiEntry, BiMasterData, Profile } from "@/lib/types";
 
 function emptyBiEntry(profile: Profile, masters: BiMasterData): BiEntry {
@@ -37,6 +37,8 @@ export function BiView({
 }) {
   const [entry, setEntry] = useState<BiEntry>(() => emptyBiEntry(profile, masters));
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [isBusy, setIsBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [resourceFilter, setResourceFilter] = useState("Todos");
   const [stateFilter, setStateFilter] = useState("Todos");
@@ -44,6 +46,15 @@ export function BiView({
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [view, setView] = useState<"registro" | "listado">("registro");
+  const isEditing = !entry.id.startsWith("new-");
+
+  const clearMessage = useCallback(() => setMessage(""), []);
+  useAutoDismissNotice(message, clearMessage);
+
+  function notify(text: string, type: "success" | "error") {
+    setMessage(text);
+    setMessageType(type);
+  }
 
   const filteredEntries = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -108,6 +119,29 @@ export function BiView({
     setEntry((current) => ({ ...current, ...values }));
   }
 
+  function resetForm() {
+    setEntry(emptyBiEntry(profile, masters));
+  }
+
+  function editEntry(item: BiEntry) {
+    setEntry(item);
+    setMessage("");
+    setView("registro");
+  }
+
+  async function removeEntry(item: BiEntry) {
+    try {
+      setIsBusy(true);
+      await deleteBiEntry(item.id);
+      notify("Registro BI eliminado con exito.", "success");
+      onChanged();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo eliminar registro BI.", "error");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const required = [
@@ -123,43 +157,53 @@ export function BiView({
       entry.descripcion
     ];
     if (required.some((value) => !String(value ?? "").trim())) {
-      setMessage("Completa todos los campos BI antes de guardar.");
+      notify("Completa todos los campos BI antes de guardar.", "error");
       return;
     }
     if (entry.esfuerzo_horas <= 0 || entry.esfuerzo_horas > 8) {
-      setMessage(hourValidationMessage);
+      notify(hourValidationMessage, "error");
       return;
     }
     try {
+      setIsBusy(true);
       await saveBiEntry(entry);
-      setMessage("Registro BI guardado con exito.");
-      setEntry(emptyBiEntry(profile, masters));
+      notify(isEditing ? "Registro BI actualizado con exito." : "Registro BI guardado con exito.", "success");
+      resetForm();
       onChanged();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo guardar registro BI.");
+      notify(error instanceof Error ? error.message : "No se pudo guardar registro BI.", "error");
+    } finally {
+      setIsBusy(false);
     }
   }
 
   return (
     <section className="grid">
+      <LoadingOverlay show={isBusy} />
       <div className="section-head">
         <div>
           <h2>Registro BI</h2>
           <p className="muted">Registra horas BI sin flujo de tickets ni aprobaciones.</p>
         </div>
         <div className="segmented">
-          <button className={view === "registro" ? "active" : ""} type="button" onClick={() => setView("registro")}>Registrar BI</button>
-          <button className={view === "listado" ? "active" : ""} type="button" onClick={() => setView("listado")}>Listado BI</button>
+          <button className={view === "registro" ? "active" : ""} type="button" disabled={isBusy} onClick={() => setView("registro")}>Registrar BI</button>
+          <button className={view === "listado" ? "active" : ""} type="button" disabled={isBusy} onClick={() => setView("listado")}>Listado BI</button>
         </div>
       </div>
+      {message && <div className={`notice ${messageType}`}>{message}</div>}
 
       {view === "registro" && (
         <form className="card grid register-card" onSubmit={submit}>
           <div className="section-head compact register-title">
             <div>
-              <h3>Nuevo registro BI</h3>
+              <h3>{isEditing ? "Editar registro BI" : "Nuevo registro BI"}</h3>
               <p className="muted">El correlativo se generara automaticamente al guardar.</p>
             </div>
+            {isEditing && (
+              <button className="secondary icon-button" type="button" disabled={isBusy} onClick={resetForm} title="Cancelar edicion">
+                <X size={16} />
+              </button>
+            )}
           </div>
           <div className="form-band">
             <h3>Datos generales</h3>
@@ -208,8 +252,7 @@ export function BiView({
               <textarea value={entry.descripcion} onChange={(event) => patch({ descripcion: event.target.value })} />
             </label>
           </div>
-          {message && <div className="notice">{message}</div>}
-          <button><Save size={16} /> Guardar BI</button>
+          <button disabled={isBusy}><Save size={16} /> {isEditing ? "Actualizar BI" : "Guardar BI"}</button>
         </form>
       )}
 
@@ -239,8 +282,8 @@ export function BiView({
             <div className="toolbar">
               <span className="pill">Registros: {filteredEntries.length}</span>
               <span className="pill muted-pill">Horas: {filteredEntries.reduce((sum, item) => sum + Number(item.esfuerzo_horas), 0)}</span>
-              <button className="secondary" type="button" disabled={!filteredEntries.length} onClick={exportCsv}><Download size={16} /> Exportar CSV</button>
-              <button className="secondary" type="button" onClick={clearFilters}>Limpiar filtros</button>
+              <button className="secondary" type="button" disabled={!filteredEntries.length || isBusy} onClick={exportCsv}><Download size={16} /> Exportar CSV</button>
+              <button className="secondary" type="button" disabled={isBusy} onClick={clearFilters}>Limpiar filtros</button>
             </div>
           </div>
           <div className="card table-card">
@@ -257,6 +300,7 @@ export function BiView({
                 <th>Fecha fin</th>
                 <th>Horas</th>
                 <th>Descripcion</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -272,6 +316,16 @@ export function BiView({
                   <td>{item.fecha_fin}</td>
                   <td>{item.esfuerzo_horas}</td>
                   <td className="description-cell">{item.descripcion}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="secondary icon-button" type="button" disabled={isBusy} onClick={() => editEntry(item)} title="Editar BI">
+                        <Pencil size={16} />
+                      </button>
+                      <button className="secondary icon-button" type="button" disabled={isBusy} onClick={() => removeEntry(item)} title="Eliminar BI">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

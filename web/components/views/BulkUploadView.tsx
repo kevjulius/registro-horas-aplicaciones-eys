@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Download, X } from "lucide-react";
+import { LoadingOverlay, useAutoDismissNotice } from "@/components/app-shared";
 import { bulkHeaders, parseBulkText } from "@/lib/bulk";
 import { saveEntries } from "@/lib/repository";
 import type { MasterData, Profile, Ticket } from "@/lib/types";
@@ -106,29 +107,43 @@ function downloadBulkTemplate(tickets: Ticket[]) {
 export function BulkUploadView({ profile, masters, tickets, onSaved }: { profile: Profile; masters: MasterData; tickets: Ticket[]; onSaved: () => void }) {
   const [text, setText] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [saveMessageType, setSaveMessageType] = useState<"success" | "error">("success");
+  const [isBusy, setIsBusy] = useState(false);
+  const clearSaveMessage = useCallback(() => setSaveMessage(""), []);
+  useAutoDismissNotice(saveMessage, clearSaveMessage);
   const parsed = useMemo(() => (text.trim() ? parseBulkText(text, masters, tickets, profile) : { records: [], errors: [] }), [text, masters, tickets, profile]);
   const blocked = ["trabajador", "trabajador_aplicaciones"].includes(profile.role) && parsed.records.some((record) => record.recurso !== profile.resource_name);
 
   async function save() {
     if (blocked || parsed.errors.length || !parsed.records.length) return;
-    await saveEntries(parsed.records);
-    setSaveMessage(`Carga masiva guardada con exito. Registros: ${parsed.records.length}.`);
-    setText("");
-    onSaved();
+    try {
+      setIsBusy(true);
+      await saveEntries(parsed.records);
+      setSaveMessageType("success");
+      setSaveMessage(`Carga masiva guardada con exito. Registros: ${parsed.records.length}.`);
+      setText("");
+      onSaved();
+    } catch (error) {
+      setSaveMessageType("error");
+      setSaveMessage(error instanceof Error ? error.message : "No se pudo guardar la carga masiva.");
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   return (
     <section className="grid">
+      <LoadingOverlay show={isBusy} />
       <div className="section-head">
         <div>
           <h2>Carga masiva</h2>
           <p className="muted">Descarga la plantilla para copiar/pegar las filas (incluyendo los titulos). El sistema validara el registro y mostrara los registros validos o con errores.</p>
         </div>
         <div className="toolbar">
-          <button className="secondary" type="button" onClick={() => downloadBulkTemplate(tickets)}>
+          <button className="secondary" type="button" disabled={isBusy} onClick={() => downloadBulkTemplate(tickets)}>
             <Download size={16} /> Descargar plantilla Excel
           </button>
-          <button className="secondary" type="button" onClick={() => { setText(""); setSaveMessage(""); }}>
+          <button className="secondary" type="button" disabled={isBusy} onClick={() => { setText(""); setSaveMessage(""); }}>
             <X size={16} /> Limpiar campo
           </button>
         </div>
@@ -137,9 +152,9 @@ export function BulkUploadView({ profile, masters, tickets, onSaved }: { profile
         Pega aqui los datos copiados desde Excel
         <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="fecha_reporte	codigo_tck	descripcion	horas_invertidas" />
       </label>
-      {parsed.errors.length > 0 && <div className="notice">{parsed.errors.slice(0, 10).map((error) => <p key={error}>{error}</p>)}</div>}
-      {blocked && <div className="notice">La carga contiene registros de otro recurso.</div>}
-      {saveMessage && <div className="notice">{saveMessage}</div>}
+      {parsed.errors.length > 0 && <div className="notice error">{parsed.errors.slice(0, 10).map((error) => <p key={error}>{error}</p>)}</div>}
+      {blocked && <div className="notice error">La carga contiene registros de otro recurso.</div>}
+      {saveMessage && <div className={`notice ${saveMessageType}`}>{saveMessage}</div>}
       <div className="toolbar">
         <span className="pill">Registros validos: {parsed.records.length}</span>
         <span className="pill muted-pill">Errores: {parsed.errors.length}</span>
@@ -172,7 +187,7 @@ export function BulkUploadView({ profile, masters, tickets, onSaved }: { profile
           </table>
         </div>
       )}
-      <button disabled={blocked || parsed.errors.length > 0 || parsed.records.length === 0} onClick={save}>Guardar carga masiva</button>
+      <button disabled={isBusy || blocked || parsed.errors.length > 0 || parsed.records.length === 0} onClick={save}>Guardar carga masiva</button>
     </section>
   );
 }

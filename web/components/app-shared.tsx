@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Save, X } from "lucide-react";
 import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
 import type { MasterData, Profile, Ticket, TicketAttentionType, TimeEntry } from "@/lib/types";
@@ -34,6 +34,26 @@ export function showHourValidation(event: React.InvalidEvent<HTMLInputElement>) 
 
 export function clearHourValidation(event: React.FormEvent<HTMLInputElement>) {
   event.currentTarget.setCustomValidity("");
+}
+
+export function useAutoDismissNotice(message: string, onClear: () => void, delay = 6000) {
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(onClear, delay);
+    return () => window.clearTimeout(timer);
+  }, [delay, message, onClear]);
+}
+
+export function LoadingOverlay({ show, label = "Cargando..." }: { show: boolean; label?: string }) {
+  if (!show) return null;
+  return (
+    <div className="loading-overlay" role="status" aria-live="polite">
+      <div className="loading-box">
+        <span className="loader-dot" />
+        {label}
+      </div>
+    </div>
+  );
 }
 
 export function emptyEntry(profile: Profile | null): TimeEntry {
@@ -223,7 +243,8 @@ export function TicketForm({
   responsibilitiesDisabled = false,
   showReceptionDate = true,
   resourceOptions,
-  applicationOptions
+  applicationOptions,
+  disabled = false
 }: {
   ticket: Ticket;
   masters: MasterData;
@@ -237,6 +258,7 @@ export function TicketForm({
   showReceptionDate?: boolean;
   resourceOptions?: string[];
   applicationOptions?: string[];
+  disabled?: boolean;
 }) {
   const responsibleOptions = resourceOptions ?? masters.recursos;
   const systemOptions = applicationOptions ?? masters.aplicaciones;
@@ -260,7 +282,7 @@ export function TicketForm({
           <p className="muted">{ticket.codigo_tck ? "Edita los datos del ticket." : "El codigo se generara automaticamente al guardar."}</p>
         </div>
         {onClose && (
-          <button className="secondary icon-button" type="button" onClick={onClose} title="Cerrar edicion">
+          <button className="secondary icon-button" type="button" disabled={disabled} onClick={onClose} title="Cerrar edicion">
             <X size={16} />
           </button>
         )}
@@ -351,7 +373,7 @@ export function TicketForm({
         </label>
       </div>
 
-      <button type="button" onClick={onSubmit}><Save size={16} /> {submitLabel}</button>
+      <button type="button" disabled={disabled} onClick={onSubmit}><Save size={16} /> {submitLabel}</button>
     </div>
   );
 }

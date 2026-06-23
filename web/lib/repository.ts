@@ -219,8 +219,30 @@ export async function saveBiEntry(entry: BiEntry): Promise<BiEntry[]> {
   }
   const entries = readLocal(biEntriesKey, demoBiEntries);
   const nextEntry = { ...entry, correlativo: entry.correlativo || `BI-LOC${String(entries.length + 1).padStart(7, "0")}` };
-  writeLocal(biEntriesKey, [nextEntry, ...entries]);
-  return [nextEntry, ...entries];
+  const index = entries.findIndex((item) => item.id === entry.id);
+  const next = index >= 0
+    ? entries.map((item) => (item.id === entry.id ? nextEntry : item))
+    : [nextEntry, ...entries];
+  writeLocal(biEntriesKey, next);
+  return next;
+}
+
+export async function deleteBiEntry(id: string): Promise<BiEntry[]> {
+  if (hasSupabaseConfig) {
+    const response = await fetch(`/api/bi/entries?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: await authHeaders()
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo eliminar registro BI.");
+    }
+    const payload = (await response.json()) as { entries: BiEntry[] };
+    return payload.entries;
+  }
+  const entries = readLocal(biEntriesKey, demoBiEntries).filter((entry) => entry.id !== id);
+  writeLocal(biEntriesKey, entries);
+  return entries;
 }
 
 export async function saveBiEntries(entries: BiEntry[]): Promise<BiEntry[]> {

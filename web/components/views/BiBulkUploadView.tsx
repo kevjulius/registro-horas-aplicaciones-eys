@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Download, X } from "lucide-react";
+import { LoadingOverlay, useAutoDismissNotice } from "@/components/app-shared";
 import { biBulkHeaders, parseBiBulkText } from "@/lib/bi-bulk";
 import { saveBiEntries } from "@/lib/repository";
 import type { BiMasterData, Profile } from "@/lib/types";
@@ -98,28 +99,42 @@ function downloadBiTemplate(masters: BiMasterData) {
 export function BiBulkUploadView({ profile, masters, onSaved }: { profile: Profile; masters: BiMasterData; onSaved: () => void }) {
   const [text, setText] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [saveMessageType, setSaveMessageType] = useState<"success" | "error">("success");
+  const [isBusy, setIsBusy] = useState(false);
+  const clearSaveMessage = useCallback(() => setSaveMessage(""), []);
+  useAutoDismissNotice(saveMessage, clearSaveMessage);
   const parsed = useMemo(() => (text.trim() ? parseBiBulkText(text, masters, profile) : { records: [], errors: [] }), [text, masters, profile]);
 
   async function save() {
     if (parsed.errors.length || !parsed.records.length) return;
-    await saveBiEntries(parsed.records);
-    setSaveMessage(`Carga masiva BI guardada con exito. Registros: ${parsed.records.length}.`);
-    setText("");
-    onSaved();
+    try {
+      setIsBusy(true);
+      await saveBiEntries(parsed.records);
+      setSaveMessageType("success");
+      setSaveMessage(`Carga masiva BI guardada con exito. Registros: ${parsed.records.length}.`);
+      setText("");
+      onSaved();
+    } catch (error) {
+      setSaveMessageType("error");
+      setSaveMessage(error instanceof Error ? error.message : "No se pudo guardar la carga masiva BI.");
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   return (
     <section className="grid">
+      <LoadingOverlay show={isBusy} />
       <div className="section-head">
         <div>
           <h2>Carga masiva BI</h2>
           <p className="muted">Descarga la plantilla BI para copiar/pegar las filas. El sistema validara contra maestras BI.</p>
         </div>
         <div className="toolbar">
-          <button className="secondary" type="button" onClick={() => downloadBiTemplate(masters)}>
+          <button className="secondary" type="button" disabled={isBusy} onClick={() => downloadBiTemplate(masters)}>
             <Download size={16} /> Descargar plantilla BI
           </button>
-          <button className="secondary" type="button" onClick={() => { setText(""); setSaveMessage(""); }}>
+          <button className="secondary" type="button" disabled={isBusy} onClick={() => { setText(""); setSaveMessage(""); }}>
             <X size={16} /> Limpiar campo
           </button>
         </div>
@@ -128,8 +143,8 @@ export function BiBulkUploadView({ profile, masters, onSaved }: { profile: Profi
         Pega aqui los datos BI copiados desde Excel
         <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="asignado_a	formato	solicitado_por	..." />
       </label>
-      {parsed.errors.length > 0 && <div className="notice">{parsed.errors.slice(0, 10).map((error) => <p key={error}>{error}</p>)}</div>}
-      {saveMessage && <div className="notice">{saveMessage}</div>}
+      {parsed.errors.length > 0 && <div className="notice error">{parsed.errors.slice(0, 10).map((error) => <p key={error}>{error}</p>)}</div>}
+      {saveMessage && <div className={`notice ${saveMessageType}`}>{saveMessage}</div>}
       <div className="toolbar">
         <span className="pill">Registros validos: {parsed.records.length}</span>
         <span className="pill muted-pill">Errores: {parsed.errors.length}</span>
@@ -164,7 +179,7 @@ export function BiBulkUploadView({ profile, masters, onSaved }: { profile: Profi
           </table>
         </div>
       )}
-      <button disabled={parsed.errors.length > 0 || parsed.records.length === 0} onClick={save}>Guardar carga masiva BI</button>
+      <button disabled={isBusy || parsed.errors.length > 0 || parsed.records.length === 0} onClick={save}>Guardar carga masiva BI</button>
     </section>
   );
 }

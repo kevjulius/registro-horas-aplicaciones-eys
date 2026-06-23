@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Save } from "lucide-react";
 import {
   clearHourValidation,
   emptyEntry,
   estados,
   hourValidationMessage,
+  LoadingOverlay,
   MultiSelectField,
   SelectField,
   showHourValidation,
   siNo,
   TicketCodeField,
-  ticketMatchesEntry
+  ticketMatchesEntry,
+  useAutoDismissNotice
 } from "@/components/app-shared";
 import { saveEntry } from "@/lib/repository";
 import { ticketPeriodValidationMessage } from "@/lib/ticket-period";
@@ -21,7 +23,16 @@ import type { MasterData, Profile, Ticket, TimeEntry } from "@/lib/types";
 export function RegisterView({ profile, masters, tickets, onSaved }: { profile: Profile; masters: MasterData; tickets: Ticket[]; onSaved: () => void }) {
   const [entry, setEntry] = useState<TimeEntry>(() => emptyEntry(profile));
   const [saveMessage, setSaveMessage] = useState("");
+  const [saveMessageType, setSaveMessageType] = useState<"success" | "error">("success");
+  const [isBusy, setIsBusy] = useState(false);
   const approvedTickets = useMemo(() => tickets.filter((ticket) => ticket.approval_status === "Aprobado"), [tickets]);
+  const clearSaveMessage = useCallback(() => setSaveMessage(""), []);
+  useAutoDismissNotice(saveMessage, clearSaveMessage);
+
+  function notify(text: string, type: "success" | "error") {
+    setSaveMessage(text);
+    setSaveMessageType(type);
+  }
 
   function patch(values: Partial<TimeEntry>) {
     setEntry((current) => ({ ...current, ...values }));
@@ -61,33 +72,41 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!entry.codigo_tck || !entry.sociedad || !entry.horas_invertidas) {
-      setSaveMessage("Completa TCK, sociedad y horas antes de guardar.");
+      notify("Completa TCK, sociedad y horas antes de guardar.", "error");
       return;
     }
     const selectedTicket = approvedTickets.find((ticket) => ticket.codigo_tck.toUpperCase() === entry.codigo_tck.trim().toUpperCase());
     if (selectedTicket) {
       const periodMessage = ticketPeriodValidationMessage(selectedTicket, entry.fecha_reporte);
       if (periodMessage) {
-        setSaveMessage(periodMessage);
+        notify(periodMessage, "error");
         return;
       }
     }
     if (!approvedTickets.some((ticket) => ticketMatchesEntry(ticket, entry, profile))) {
-      setSaveMessage("Selecciona un ticket existente, aprobado y asignado a tu usuario.");
+      notify("Selecciona un ticket existente, aprobado y asignado a tu usuario.", "error");
       return;
     }
     if (entry.horas_invertidas <= 0 || entry.horas_invertidas > 8) {
-      setSaveMessage(hourValidationMessage);
+      notify(hourValidationMessage, "error");
       return;
     }
-    await saveEntry({ ...entry, codigo_tck: entry.codigo_tck.toUpperCase(), modificado: new Date().toISOString() });
-    setEntry(emptyEntry(profile));
-    setSaveMessage("Registro guardado con exito.");
-    onSaved();
+    try {
+      setIsBusy(true);
+      await saveEntry({ ...entry, codigo_tck: entry.codigo_tck.toUpperCase(), modificado: new Date().toISOString() });
+      setEntry(emptyEntry(profile));
+      notify("Registro guardado con exito.", "success");
+      onSaved();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo guardar el registro.", "error");
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   return (
     <form className="card grid register-card" onSubmit={submit}>
+      <LoadingOverlay show={isBusy} />
       <div className="section-head compact register-title">
         <div>
           <h2>Nuevo registro</h2>
@@ -154,8 +173,8 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
           <textarea value={entry.descripcion} onChange={(e) => patch({ descripcion: e.target.value })} />
         </label>
       </div>
-      {saveMessage && <div className="notice">{saveMessage}</div>}
-      <button><Save size={16} /> Guardar registro</button>
+      {saveMessage && <div className={`notice ${saveMessageType}`}>{saveMessage}</div>}
+      <button disabled={isBusy}><Save size={16} /> Guardar registro</button>
     </form>
   );
 }

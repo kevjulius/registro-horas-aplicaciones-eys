@@ -123,6 +123,18 @@ export async function POST(request: Request) {
     };
     validateEntry(cleanEntry, profile);
 
+    if (cleanEntry.id && !cleanEntry.id.startsWith("new-") && profile.role === "trabajador_bi") {
+      const { data: existing, error: existingError } = await supabase
+        .from("bi_entries")
+        .select("asignado_a")
+        .eq("id", cleanEntry.id)
+        .single();
+      if (existingError || !existing) throw new Error("No se encontro el registro BI.");
+      if (existing.asignado_a !== profile.resource_name) {
+        throw new Error("Solo puedes editar registros BI asignados a tu recurso.");
+      }
+    }
+
     const row = {
       correlativo: cleanEntry.correlativo || await nextCode(supabase, cleanEntry.tipo_atencion),
       asignado_a: cleanEntry.asignado_a,
@@ -148,5 +160,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ entries: await readEntries(supabase, profile) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo guardar registro BI." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const supabase = adminClient();
+    const profile = await requireBiProfile(request, supabase);
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) throw new Error("Falta el id del registro BI.");
+
+    const { data: existing, error: existingError } = await supabase
+      .from("bi_entries")
+      .select("id, asignado_a")
+      .eq("id", id)
+      .single();
+    if (existingError || !existing) throw new Error("No se encontro el registro BI.");
+    if (profile.role === "trabajador_bi" && existing.asignado_a !== profile.resource_name) {
+      throw new Error("Solo puedes eliminar registros BI asignados a tu recurso.");
+    }
+
+    const { error } = await supabase.from("bi_entries").delete().eq("id", id);
+    if (error) throw error;
+    return NextResponse.json({ entries: await readEntries(supabase, profile) });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo eliminar registro BI." }, { status: 500 });
   }
 }

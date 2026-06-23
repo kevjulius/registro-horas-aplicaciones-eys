@@ -1,18 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Clock, Pencil, Save, Search, Trash2 } from "lucide-react";
 import {
   clearHourValidation,
   emptyTicket,
   hourValidationMessage,
+  LoadingOverlay,
   maxDaysForAttention,
   SelectField,
   ticketAttentionTypes,
   ticketEstados,
   TicketForm,
   today,
-  showHourValidation
+  showHourValidation,
+  useAutoDismissNotice
 } from "@/components/app-shared";
 import { closeExpiredTickets, requestTicket, saveEntry, saveTickets } from "@/lib/repository";
 import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
@@ -50,17 +52,35 @@ export function TicketsView({
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [ticketView, setTicketView] = useState<"crear" | "listado">("listado");
   const [ticketMessage, setTicketMessage] = useState("");
+  const [ticketMessageType, setTicketMessageType] = useState<"success" | "error">("success");
+  const [isBusy, setIsBusy] = useState(false);
   const [quickTicket, setQuickTicket] = useState<Ticket | null>(null);
   const [quickDate, setQuickDate] = useState(today());
   const [quickHours, setQuickHours] = useState(0);
   const [quickDescription, setQuickDescription] = useState("");
   const [quickMessage, setQuickMessage] = useState("");
+  const [quickMessageType, setQuickMessageType] = useState<"success" | "error">("success");
   const [ticketSearch, setTicketSearch] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("Todos");
   const [ticketTypeFilter, setTicketTypeFilter] = useState("Todos");
-  const [ticketResponsibleFilter, setTicketResponsibleFilter] = useState("Todos");
-  const [ticketDateFrom, setTicketDateFrom] = useState(today());
-  const [ticketDateTo, setTicketDateTo] = useState(today());
+  const [ticketResponsibleFilter, setTicketResponsibleFilter] = useState(isAdmin ? "Todos" : profile.resource_name ?? "Todos");
+  const [ticketDateFrom, setTicketDateFrom] = useState("");
+  const [ticketDateTo, setTicketDateTo] = useState("");
+
+  const clearTicketMessage = useCallback(() => setTicketMessage(""), []);
+  const clearQuickMessage = useCallback(() => setQuickMessage(""), []);
+  useAutoDismissNotice(ticketMessage, clearTicketMessage);
+  useAutoDismissNotice(quickMessage, clearQuickMessage);
+
+  function notifyTicket(text: string, type: "success" | "error") {
+    setTicketMessage(text);
+    setTicketMessageType(type);
+  }
+
+  function notifyQuick(text: string, type: "success" | "error") {
+    setQuickMessage(text);
+    setQuickMessageType(type);
+  }
 
   const filteredTickets = useMemo(() => {
     const search = ticketSearch.trim().toLowerCase();
@@ -90,9 +110,9 @@ export function TicketsView({
     setTicketSearch("");
     setTicketStatusFilter("Todos");
     setTicketTypeFilter("Todos");
-    setTicketResponsibleFilter("Todos");
-    setTicketDateFrom(today());
-    setTicketDateTo(today());
+    setTicketResponsibleFilter(isAdmin ? "Todos" : profile.resource_name ?? "Todos");
+    setTicketDateFrom("");
+    setTicketDateTo("");
   }
 
   function normalizeTicket(values: Ticket): Ticket {
@@ -169,31 +189,37 @@ export function TicketsView({
       : ticket;
     const validation = validateTicketForm(ticketToSave);
     if (validation) {
-      setTicketMessage(validation);
+      notifyTicket(validation, "error");
       return;
     }
     try {
+      setIsBusy(true);
       const normalizedTicket = { ...ticketToSave, subject_correo: ticketToSave.alcance_correo };
       if (isAdmin) await saveTickets([normalizedTicket]);
       else await requestTicket({ ...normalizedTicket, approval_status: "Aprobado", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
-      setTicketMessage(successMessage);
+      notifyTicket(successMessage, "success");
       setDraftTicket(newDraftTicket());
       setEditingTicket(null);
       setTicketView("listado");
       onChanged();
     } catch (error) {
-      setTicketMessage(error instanceof Error ? error.message : "No se pudo guardar tickets.");
+      notifyTicket(error instanceof Error ? error.message : "No se pudo guardar tickets.", "error");
+    } finally {
+      setIsBusy(false);
     }
   }
 
   async function deleteTicket(ticket: Ticket) {
     try {
+      setIsBusy(true);
       await saveTickets([{ ...ticket, active: false }]);
-      setTicketMessage("Ticket eliminado.");
+      notifyTicket("Ticket eliminado.", "success");
       if (editingTicket?.id === ticket.id) setEditingTicket(null);
       onChanged();
     } catch (error) {
-      setTicketMessage(error instanceof Error ? error.message : "No se pudo eliminar ticket.");
+      notifyTicket(error instanceof Error ? error.message : "No se pudo eliminar ticket.", "error");
+    } finally {
+      setIsBusy(false);
     }
   }
 
@@ -214,19 +240,19 @@ export function TicketsView({
   async function saveQuickEntry() {
     if (!quickTicket) return;
     if (!profile.resource_name) {
-      setQuickMessage("Tu usuario no tiene recurso asignado.");
+      notifyQuick("Tu usuario no tiene recurso asignado.", "error");
       return;
     }
     if (!quickTicket.responsables.includes(profile.resource_name)) {
-      setQuickMessage("Solo puedes registrar horas en tickets asignados a tu usuario.");
+      notifyQuick("Solo puedes registrar horas en tickets asignados a tu usuario.", "error");
       return;
     }
     if (!ticketMatchesReportPeriod(quickTicket, quickDate)) {
-      setQuickMessage(`El rango de fecha del ticket es de ${quickTicket.fecha_solicitud} al ${quickTicket.fecha_termino}. En caso requiera extender la fecha fin, contactarse con el administrador.`);
+      notifyQuick(`El rango de fecha del ticket es de ${quickTicket.fecha_solicitud} al ${quickTicket.fecha_termino}. En caso requiera extender la fecha fin, contactarse con el administrador.`, "error");
       return;
     }
     if (quickHours <= 0 || quickHours > 8) {
-      setQuickMessage(hourValidationMessage);
+      notifyQuick(hourValidationMessage, "error");
       return;
     }
 
@@ -250,46 +276,53 @@ export function TicketsView({
     };
 
     try {
+      setIsBusy(true);
       await saveEntry(entry);
-      setTicketMessage("Horas registradas con exito.");
+      notifyTicket("Horas registradas con exito.", "success");
       setQuickMessage("");
       setQuickHours(0);
       setQuickDescription("");
       setQuickTicket(null);
       onChanged();
     } catch (error) {
-      setQuickMessage(error instanceof Error ? error.message : "No se pudo registrar horas.");
+      notifyQuick(error instanceof Error ? error.message : "No se pudo registrar horas.", "error");
+    } finally {
+      setIsBusy(false);
     }
   }
 
   async function closeExpired() {
     try {
+      setIsBusy(true);
       const result = await closeExpiredTickets();
-      setTicketMessage(`Tickets vencidos cerrados: ${result.updated}.`);
+      notifyTicket(`Tickets vencidos cerrados: ${result.updated}.`, "success");
       onChanged();
     } catch (error) {
-      setTicketMessage(error instanceof Error ? error.message : "No se pudo cerrar tickets vencidos.");
+      notifyTicket(error instanceof Error ? error.message : "No se pudo cerrar tickets vencidos.", "error");
+    } finally {
+      setIsBusy(false);
     }
   }
 
   return (
     <section className="grid">
+      <LoadingOverlay show={isBusy} />
       <div className="section-head">
         <div>
           <h2>Tickets</h2>
           <p className="muted">Gestiona tickets y registra horas directamente desde cada ticket.</p>
         </div>
-        {isAdmin && <button className="secondary" type="button" onClick={closeExpired}>Cerrar tickets vencidos</button>}
+        {isAdmin && <button className="secondary" type="button" disabled={isBusy} onClick={closeExpired}>Cerrar tickets vencidos</button>}
       </div>
 
       <div className="segmented">
-        <button className={ticketView === "crear" ? "active" : ""} type="button" onClick={() => { setTicketMessage(""); setDraftTicket(newDraftTicket()); setTicketView("crear"); }}>
+        <button className={ticketView === "crear" ? "active" : ""} type="button" disabled={isBusy} onClick={() => { setTicketMessage(""); setDraftTicket(newDraftTicket()); setTicketView("crear"); }}>
           Crear ticket
         </button>
-        <button className={ticketView === "listado" ? "active" : ""} type="button" onClick={() => { setTicketMessage(""); setTicketView("listado"); }}>Listado de tickets</button>
+        <button className={ticketView === "listado" ? "active" : ""} type="button" disabled={isBusy} onClick={() => { setTicketMessage(""); setTicketView("listado"); }}>Listado de tickets</button>
       </div>
 
-      {ticketMessage && <pre className="notice">{ticketMessage}</pre>}
+      {ticketMessage && <pre className={`notice ${ticketMessageType}`}>{ticketMessage}</pre>}
 
       {ticketView === "crear" && (
         <TicketForm
@@ -302,6 +335,7 @@ export function TicketsView({
           showReceptionDate={false}
           resourceOptions={responsibleOptions}
           applicationOptions={visibleApplications}
+          disabled={isBusy}
         />
       )}
 
@@ -328,7 +362,7 @@ export function TicketsView({
                 <input type="date" value={ticketDateTo} onChange={(event) => setTicketDateTo(event.target.value)} />
               </label>
             </div>
-            <button className="secondary" type="button" onClick={clearTicketFilters}>Limpiar filtros</button>
+            <button className="secondary" type="button" disabled={isBusy} onClick={clearTicketFilters}>Limpiar filtros</button>
           </div>
 
           {editingTicket && isAdmin && (
@@ -343,6 +377,7 @@ export function TicketsView({
               showReceptionDate
               resourceOptions={responsibleOptions}
               applicationOptions={visibleApplications}
+              disabled={isBusy}
             />
           )}
 
@@ -353,7 +388,7 @@ export function TicketsView({
                   <h3>Registrar horas en {quickTicket.codigo_tck}</h3>
                   <p className="muted">{quickTicket.sistema} · {quickTicket.fecha_solicitud} a {quickTicket.fecha_termino}</p>
                 </div>
-                <button className="secondary" type="button" onClick={() => setQuickTicket(null)}>Cerrar</button>
+                <button className="secondary" type="button" disabled={isBusy} onClick={() => setQuickTicket(null)}>Cerrar</button>
               </div>
               <div className="grid grid-3">
                 <label>
@@ -373,13 +408,13 @@ export function TicketsView({
                     onChange={(event) => setQuickHours(Number(event.target.value))}
                   />
                 </label>
-                <button type="button" onClick={saveQuickEntry}><Save size={16} /> Guardar horas</button>
+                <button type="button" disabled={isBusy} onClick={saveQuickEntry}><Save size={16} /> Guardar horas</button>
               </div>
               <label>
                 Descripcion
                 <textarea value={quickDescription} onChange={(event) => setQuickDescription(event.target.value)} placeholder="Detalle de las horas registradas..." />
               </label>
-              {quickMessage && <div className="notice">{quickMessage}</div>}
+              {quickMessage && <div className={`notice ${quickMessageType}`}>{quickMessage}</div>}
             </div>
           )}
 
@@ -417,15 +452,15 @@ export function TicketsView({
                     <td className="description-cell">{ticket.alcance_correo}</td>
                     <td>
                       <div className="row-actions">
-                        <button className="secondary icon-button" type="button" title="Registrar horas" onClick={() => openQuickEntry(ticket)}>
+                        <button className="secondary icon-button" type="button" disabled={isBusy} title="Registrar horas" onClick={() => openQuickEntry(ticket)}>
                           <Clock size={16} />
                         </button>
                         {isAdmin && (
                           <>
-                            <button className="secondary icon-button" type="button" title="Editar ticket" onClick={() => { setEditingTicket(ticket); setTicketMessage(""); }}>
+                            <button className="secondary icon-button" type="button" disabled={isBusy} title="Editar ticket" onClick={() => { setEditingTicket(ticket); setTicketMessage(""); }}>
                               <Pencil size={16} />
                             </button>
-                            <button className="secondary icon-button" type="button" title="Eliminar ticket" onClick={() => deleteTicket(ticket)}>
+                            <button className="secondary icon-button" type="button" disabled={isBusy} title="Eliminar ticket" onClick={() => deleteTicket(ticket)}>
                               <Trash2 size={16} />
                             </button>
                           </>
