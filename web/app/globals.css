@@ -847,7 +847,7 @@ section.grid > button:not(.icon-button) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
   gap: 12px;
-  align-items: end;
+  align-items: stretch;
   min-height: 330px;
   width: 100%;
   border: 1px solid var(--border);

@@ -287,7 +287,7 @@ export async function POST(request: Request) {
       .insert(responsables.map((resourceName) => ({ ticket_id: saved.id, resource_name: resourceName })));
     if (linkError) throw linkError;
 
-    return NextResponse.json({ tickets: await readTickets(supabase, profile) });
+    return NextResponse.json({ tickets: await readTickets(supabase, profile), ticketCode: codigoTck });
   } catch (error) {
     return NextResponse.json(
       { error: errorMessage(error, "No se pudo solicitar ticket.") },

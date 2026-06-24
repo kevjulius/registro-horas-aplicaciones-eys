@@ -40,7 +40,11 @@ export function BiView({
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isBusy, setIsBusy] = useState(false);
   const [search, setSearch] = useState("");
-  const [resourceFilter, setResourceFilter] = useState("Todos");
+  const defaultResourceFilter = profile.role === "administracion" ? "Todos" : profile.resource_name ?? "Todos";
+  const resourceOptions = useMemo(() => {
+    return Array.from(new Set([...masters.recursos, profile.resource_name].filter(Boolean) as string[])).sort();
+  }, [masters.recursos, profile.resource_name]);
+  const [resourceFilter, setResourceFilter] = useState(defaultResourceFilter);
   const [stateFilter, setStateFilter] = useState("Todos");
   const [serviceFilter, setServiceFilter] = useState("Todos");
   const [fromDate, setFromDate] = useState("");
@@ -108,7 +112,7 @@ export function BiView({
 
   function clearFilters() {
     setSearch("");
-    setResourceFilter("Todos");
+    setResourceFilter(defaultResourceFilter);
     setStateFilter("Todos");
     setServiceFilter("Todos");
     setFromDate("");
@@ -267,7 +271,7 @@ export function BiView({
                   <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Recurso, servicio, descripcion..." />
                 </div>
               </label>
-              <SelectField label="Asignado a" value={resourceFilter} options={["Todos", ...masters.recursos]} onChange={setResourceFilter} />
+              <SelectField label="Asignado a" value={resourceFilter} options={["Todos", ...resourceOptions]} onChange={setResourceFilter} />
               <SelectField label="Estado" value={stateFilter} options={["Todos", ...masters.estados]} onChange={setStateFilter} />
               <SelectField label="Servicio" value={serviceFilter} options={["Todos", ...masters.servicios]} onChange={setServiceFilter} />
               <label>

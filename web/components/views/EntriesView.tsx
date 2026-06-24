@@ -56,7 +56,8 @@ function exportEntriesCsv(entries: TimeEntry[]) {
 }
 
 export function EntriesView({ profile, masters, tickets, entries, onChanged }: { profile: Profile; masters: MasterData; tickets: Ticket[]; entries: TimeEntry[]; onChanged: () => void }) {
-  const [resourceFilter, setResourceFilter] = useState("Todos");
+  const defaultResourceFilter = profile.role === "administracion" ? "Todos" : profile.resource_name ?? "Todos";
+  const [resourceFilter, setResourceFilter] = useState(defaultResourceFilter);
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [codeFilter, setCodeFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -84,7 +85,9 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
     setEditMessageType(type);
   }
 
-  const resources = useMemo(() => Array.from(new Set(entries.map((entry) => entry.recurso))).sort(), [entries]);
+  const resources = useMemo(() => {
+    return Array.from(new Set([...entries.map((entry) => entry.recurso), profile.resource_name].filter(Boolean) as string[])).sort();
+  }, [entries, profile.resource_name]);
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
       if (focusedEntryId && entry.id !== focusedEntryId) return false;
@@ -118,7 +121,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
   }
 
   function clearFilters() {
-    setResourceFilter("Todos");
+    setResourceFilter(defaultResourceFilter);
     setStatusFilter("Todos");
     setCodeFilter("");
     setFromDate("");

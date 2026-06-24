@@ -23,7 +23,7 @@ function HoursChart({
   zeroResources: string[];
 }) {
   const maxHours = Math.max(expectedHours, ...rows.map((row) => row.hours), 1);
-  const chartTrackTop = 78;
+  const chartTrackTop = 70;
   const chartTrackHeight = 220;
   const expectedRatio = Math.max(0, Math.min(1, expectedHours / maxHours));
   const expectedLineTop = `${chartTrackTop + (1 - expectedRatio) * chartTrackHeight}px`;

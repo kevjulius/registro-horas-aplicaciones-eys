@@ -329,7 +329,7 @@ export async function saveTickets(tickets: Ticket[]): Promise<Ticket[]> {
   return tickets;
 }
 
-export async function requestTicket(ticket: Ticket): Promise<Ticket[]> {
+export async function requestTicket(ticket: Ticket): Promise<{ tickets: Ticket[]; ticketCode?: string }> {
   if (hasSupabaseConfig) {
     const response = await fetch("/api/tickets/request", {
       method: "POST",
@@ -342,8 +342,8 @@ export async function requestTicket(ticket: Ticket): Promise<Ticket[]> {
       throw new Error(payload.error ?? "No se pudo solicitar ticket.");
     }
 
-    const payload = (await response.json()) as { tickets: Ticket[] };
-    return payload.tickets;
+    const payload = (await response.json()) as { tickets: Ticket[]; ticketCode?: string };
+    return payload;
   }
 
   const tickets = readLocal(ticketsKey, demoTickets);
@@ -355,7 +355,7 @@ export async function requestTicket(ticket: Ticket): Promise<Ticket[]> {
   };
   const next = [requested, ...tickets];
   writeLocal(ticketsKey, next);
-  return next;
+  return { tickets: next, ticketCode: requested.codigo_tck };
 }
 
 export async function closeExpiredTickets(): Promise<{ updated: number }> {

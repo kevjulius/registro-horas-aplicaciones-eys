@@ -195,9 +195,13 @@ export function TicketsView({
     try {
       setIsBusy(true);
       const normalizedTicket = { ...ticketToSave, subject_correo: ticketToSave.alcance_correo };
+      let generatedCode = normalizedTicket.codigo_tck;
       if (isAdmin) await saveTickets([normalizedTicket]);
-      else await requestTicket({ ...normalizedTicket, approval_status: "Aprobado", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
-      notifyTicket(successMessage, "success");
+      else {
+        const result = await requestTicket({ ...normalizedTicket, approval_status: "Aprobado", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
+        generatedCode = result.ticketCode ?? generatedCode;
+      }
+      notifyTicket(generatedCode ? `${successMessage} Codigo generado: ${generatedCode}.` : successMessage, "success");
       setDraftTicket(newDraftTicket());
       setEditingTicket(null);
       setTicketView("listado");
