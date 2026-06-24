@@ -56,7 +56,7 @@ function exportEntriesCsv(entries: TimeEntry[]) {
 }
 
 export function EntriesView({ profile, masters, tickets, entries, onChanged }: { profile: Profile; masters: MasterData; tickets: Ticket[]; entries: TimeEntry[]; onChanged: () => void }) {
-  const defaultResourceFilter = profile.role === "administracion" ? "Todos" : profile.resource_name ?? "Todos";
+  const defaultResourceFilter = profile.resource_name ?? "Todos";
   const [resourceFilter, setResourceFilter] = useState(defaultResourceFilter);
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [codeFilter, setCodeFilter] = useState("");

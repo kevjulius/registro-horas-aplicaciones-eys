@@ -40,7 +40,7 @@ export function BiView({
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isBusy, setIsBusy] = useState(false);
   const [search, setSearch] = useState("");
-  const defaultResourceFilter = profile.role === "administracion" ? "Todos" : profile.resource_name ?? "Todos";
+  const defaultResourceFilter = profile.resource_name ?? "Todos";
   const resourceOptions = useMemo(() => {
     return Array.from(new Set([...masters.recursos, profile.resource_name].filter(Boolean) as string[])).sort();
   }, [masters.recursos, profile.resource_name]);

@@ -63,7 +63,7 @@ export function TicketsView({
   const [ticketSearch, setTicketSearch] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("Todos");
   const [ticketTypeFilter, setTicketTypeFilter] = useState("Todos");
-  const [ticketResponsibleFilter, setTicketResponsibleFilter] = useState(isAdmin ? "Todos" : profile.resource_name ?? "Todos");
+  const [ticketResponsibleFilter, setTicketResponsibleFilter] = useState(profile.resource_name ?? "Todos");
   const [ticketDateFrom, setTicketDateFrom] = useState("");
   const [ticketDateTo, setTicketDateTo] = useState("");
 
@@ -110,7 +110,7 @@ export function TicketsView({
     setTicketSearch("");
     setTicketStatusFilter("Todos");
     setTicketTypeFilter("Todos");
-    setTicketResponsibleFilter(isAdmin ? "Todos" : profile.resource_name ?? "Todos");
+    setTicketResponsibleFilter(profile.resource_name ?? "Todos");
     setTicketDateFrom("");
     setTicketDateTo("");
   }
@@ -196,7 +196,18 @@ export function TicketsView({
       setIsBusy(true);
       const normalizedTicket = { ...ticketToSave, subject_correo: ticketToSave.alcance_correo };
       let generatedCode = normalizedTicket.codigo_tck;
-      if (isAdmin) await saveTickets([normalizedTicket]);
+      if (isAdmin) {
+        const previousCodes = new Set(tickets.map((item) => item.codigo_tck));
+        const savedTickets = await saveTickets([normalizedTicket]);
+        const createdTicket = savedTickets.find((item) => {
+          return !previousCodes.has(item.codigo_tck)
+            && item.sistema === normalizedTicket.sistema
+            && item.fecha_solicitud === normalizedTicket.fecha_solicitud
+            && item.fecha_termino === normalizedTicket.fecha_termino
+            && item.alcance_correo === normalizedTicket.alcance_correo;
+        });
+        generatedCode = generatedCode || createdTicket?.codigo_tck || "";
+      }
       else {
         const result = await requestTicket({ ...normalizedTicket, approval_status: "Aprobado", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
         generatedCode = result.ticketCode ?? generatedCode;
