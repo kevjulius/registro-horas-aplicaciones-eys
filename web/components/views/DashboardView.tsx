@@ -23,12 +23,12 @@ function HoursChart({
   zeroResources: string[];
 }) {
   const maxHours = Math.max(expectedHours, ...rows.map((row) => row.hours), 1);
-  const chartTrackTop = 70;
   const chartTrackHeight = 220;
   const expectedRatio = Math.max(0, Math.min(1, expectedHours / maxHours));
-  const expectedLineTop = `${chartTrackTop + (1 - expectedRatio) * chartTrackHeight}px`;
+  const expectedLineTop = `${(1 - expectedRatio) * chartTrackHeight}px`;
   const totalHours = rows.reduce((sum, row) => sum + row.hours, 0);
   const belowExpected = rows.filter((row) => row.hours < expectedHours).length;
+  const chartStyle = { "--expected-top": expectedLineTop, "--resource-count": Math.max(rows.length, 1) } as React.CSSProperties;
 
   return (
     <div className="card dashboard-card">
@@ -44,25 +44,33 @@ function HoursChart({
         </div>
       </div>
       <div className="dashboard-content">
-        <div className="dashboard-chart" style={{ "--expected-top": expectedLineTop } as React.CSSProperties}>
-          <div className="expected-line">
-            <span>{expectedHours}</span>
-          </div>
-          {rows.map((row) => {
-            const height = `${(row.hours / maxHours) * 100}%`;
-            return (
-              <div className="dashboard-bar-item" key={row.resource}>
-                <span className="bar-value">{row.hours}</span>
-                <div className="dashboard-bar-track">
+        <div className="dashboard-chart" style={chartStyle}>
+          {rows.length > 0 && (
+            <>
+              <div className="dashboard-values">
+                {rows.map((row) => <span className="bar-value" key={row.resource}>{row.hours}</span>)}
+              </div>
+              <div className="dashboard-plot">
+                <div className="expected-line">
+                  <span>{expectedHours}</span>
+                </div>
+                {rows.map((row) => {
+                  const height = `${(row.hours / maxHours) * 100}%`;
+                  return (
+                    <div className="dashboard-bar-track" key={row.resource}>
                   <div
                     className={row.hours >= expectedHours ? "dashboard-bar ok" : "dashboard-bar"}
                     style={{ "--bar-height": height } as React.CSSProperties}
                   />
-                </div>
-                <span className="bar-label">{row.resource}</span>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+              <div className="dashboard-labels">
+                {rows.map((row) => <span className="bar-label" key={row.resource}>{row.resource}</span>)}
+              </div>
+            </>
+          )}
           {rows.length === 0 && <p className="muted">No hay horas registradas para esos filtros.</p>}
         </div>
         <aside className="zero-resources-panel">

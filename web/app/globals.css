@@ -843,17 +843,18 @@ section.grid > button:not(.icon-button) {
 
 .dashboard-chart {
   --expected-top: 50%;
+  --resource-count: 1;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
-  gap: 12px;
-  align-items: stretch;
-  min-height: 330px;
+  grid-template-rows: 24px 220px auto;
+  gap: 6px;
+  align-items: start;
+  min-height: 300px;
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface-soft);
-  padding: 44px 18px 16px;
+  padding: 36px 14px 14px;
   overflow: hidden;
 }
 
@@ -868,7 +869,7 @@ section.grid > button:not(.icon-button) {
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 12px;
-  min-height: 330px;
+  min-height: 300px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: #f8fafc;
@@ -903,8 +904,8 @@ section.grid > button:not(.icon-button) {
 
 .expected-line {
   position: absolute;
-  left: 18px;
-  right: 18px;
+  left: 0;
+  right: 0;
   top: var(--expected-top);
   border-top: 3px dashed #ef4444;
   z-index: 2;
@@ -913,7 +914,7 @@ section.grid > button:not(.icon-button) {
 
 .expected-line span {
   position: absolute;
-  top: -28px;
+  top: -21px;
   left: 0;
   border-radius: 999px;
   background: #ef4444;
@@ -923,13 +924,30 @@ section.grid > button:not(.icon-button) {
   font-weight: 900;
 }
 
-.dashboard-bar-item {
+.dashboard-values,
+.dashboard-plot,
+.dashboard-labels {
   display: grid;
-  grid-template-rows: 26px 220px auto;
-  gap: 8px;
+  grid-template-columns: repeat(var(--resource-count), minmax(0, 1fr));
+  column-gap: 8px;
+}
+
+.dashboard-values {
   align-items: end;
   justify-items: center;
-  min-width: 0;
+  min-height: 24px;
+}
+
+.dashboard-plot {
+  position: relative;
+  height: 220px;
+  align-items: end;
+  justify-items: center;
+}
+
+.dashboard-labels {
+  align-items: start;
+  justify-items: center;
 }
 
 .bar-value {
@@ -939,7 +957,7 @@ section.grid > button:not(.icon-button) {
 
 .dashboard-bar-track {
   position: relative;
-  width: min(46px, 76%);
+  width: min(46px, 72%);
   height: 220px;
   display: flex;
   align-items: flex-end;
