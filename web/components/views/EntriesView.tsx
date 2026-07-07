@@ -254,19 +254,19 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
           <button disabled={isBusy}><Save size={16} /> Guardar cambios</button>
         </form>
       )}
-      <div className="card table-card">
+      <div className="card table-card entries-table-card">
         <table>
           <thead>
             <tr>
-              {entryExportHeaders.map((header) => <th key={header.key}>{header.label}</th>)}
-              <th></th>
+              {entryExportHeaders.map((header) => <th key={header.key} className={`entry-cell cell-${header.key}`}>{header.label}</th>)}
+              <th className="cell-actions"></th>
             </tr>
           </thead>
           <tbody>
             {filteredEntries.map((entry) => (
               <tr key={entry.id}>
                 {entryExportHeaders.map((header) => (
-                  <td key={header.key} className={header.key === "descripcion" ? "description-cell" : ""}>
+                  <td key={header.key} className={`entry-cell cell-${header.key} ${header.key === "descripcion" ? "description-cell" : ""}`}>
                     {header.key === "estado_tck" ? (
                       <span className={`status ${entry.estado_tck === "Cerrado" ? "closed" : "progress"}`}>{entry.estado_tck}</span>
                     ) : (
@@ -274,7 +274,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
                     )}
                   </td>
                 ))}
-                <td>
+                <td className="cell-actions">
                   <div className="row-actions">
                     <button className="secondary icon-button" disabled={isBusy} onClick={() => { setEditingEntry(entry); setEditMessage(""); setListMessage(""); setFocusedEntryId(entry.id); }} title="Editar atencion">
                       <Pencil size={16} />

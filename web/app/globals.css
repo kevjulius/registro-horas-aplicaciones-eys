@@ -250,9 +250,9 @@ th {
 }
 
 .main {
-  width: min(100%, 1360px);
+  width: min(100%, 1680px);
   margin: 0 auto;
-  padding: 34px 34px 56px;
+  padding: 30px clamp(18px, 2vw, 34px) 56px;
   overflow-x: auto;
 }
 
@@ -271,7 +271,11 @@ th {
 .main > .grid:has(.table-card),
 .main > .grid:has(.admin-layout),
 .main > .grid:has(.dashboard-card) {
-  width: min(100%, 1280px);
+  width: min(100%, 1560px);
+}
+
+.main > .grid:has(.entries-table-card) {
+  width: min(100%, 1640px);
 }
 
 .login-shell {
@@ -518,6 +522,70 @@ th {
 
 .table-card table {
   min-width: 1500px;
+}
+
+.entries-table-card {
+  padding: 18px;
+}
+
+.entries-table-card table {
+  min-width: 0;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.entries-table-card th,
+.entries-table-card td {
+  padding: 10px 7px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.entries-table-card .cell-fecha_reporte,
+.entries-table-card .cell-codigo_tck,
+.entries-table-card .cell-horas_invertidas,
+.entries-table-card .cell-fecha_inicio,
+.entries-table-card .cell-fecha_fin,
+.entries-table-card .cell-estado_tck,
+.entries-table-card .cell-en_servicio,
+.entries-table-card .cell-aplicativo_se_encuentra {
+  white-space: nowrap;
+}
+
+.entries-table-card .cell-fecha_reporte,
+.entries-table-card .cell-fecha_inicio,
+.entries-table-card .cell-fecha_fin {
+  width: 92px;
+}
+
+.entries-table-card .cell-codigo_tck {
+  width: 88px;
+}
+
+.entries-table-card .cell-horas_invertidas {
+  width: 76px;
+}
+
+.entries-table-card .cell-estado_tck {
+  width: 96px;
+}
+
+.entries-table-card .cell-en_servicio,
+.entries-table-card .cell-aplicativo_se_encuentra {
+  width: 86px;
+}
+
+.entries-table-card .cell-recurso {
+  width: 112px;
+}
+
+.entries-table-card .description-cell {
+  min-width: 0;
+  max-width: none;
+}
+
+.entries-table-card .cell-actions {
+  width: 76px;
 }
 
 .description-cell {
