@@ -8,7 +8,7 @@ export const bulkHeaders = [
   "horas_invertidas"
 ];
 
-const required = bulkHeaders.filter((header) => !["descripcion"].includes(header));
+const required = bulkHeaders;
 
 const headerAliases: Record<string, string> = {
   en_servicio: "servicio_integracion",
@@ -56,6 +56,7 @@ export function parseBulkText(text: string, masters: MasterData, tickets: Ticket
     const resourceName = profile?.resource_name ?? "";
 
     if (!isIsoDate(row.fecha_reporte)) rowErrors.push(`fecha_reporte debe tener formato aaaa-mm-dd: ${row.fecha_reporte}`);
+    if (!row.descripcion.trim()) rowErrors.push("descripcion es obligatoria");
     if (!ticket) rowErrors.push(`codigo_tck no existe o no esta asignado al usuario: ${row.codigo_tck}`);
     if (ticket && ticket.approval_status !== "Aprobado") rowErrors.push(`codigo_tck no esta aprobado para registrar horas: ${row.codigo_tck}`);
     if (ticket && isIsoDate(row.fecha_reporte) && !ticketMatchesReportPeriod(ticket, row.fecha_reporte)) {
@@ -85,7 +86,7 @@ export function parseBulkText(text: string, masters: MasterData, tickets: Ticket
       aplicativo: ticket!.sistema,
       fecha_inicio: ticket!.fecha_solicitud,
       fecha_fin: ticket!.fecha_termino,
-      descripcion: row.descripcion ?? "",
+      descripcion: row.descripcion.trim(),
       sociedad: ticket!.formato,
       tipo_atencion: `${ticket!.tipo_atencion} - ${ticket!.subcategoria_atencion}`,
       horas_invertidas: horas,

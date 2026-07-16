@@ -140,6 +140,10 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
       notifyEdit("Completa las horas antes de guardar.", "error");
       return;
     }
+    if (!editingEntry.descripcion?.trim()) {
+      notifyEdit("La descripcion de la atencion es obligatoria.", "error");
+      return;
+    }
     const selectedTicket = approvedTickets.find((ticket) => ticket.codigo_tck.toUpperCase() === editingEntry.codigo_tck.trim().toUpperCase());
     if (selectedTicket) {
       const periodMessage = ticketPeriodValidationMessage(selectedTicket, editingEntry.fecha_reporte);
@@ -161,6 +165,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
       await saveEntry({
         ...editingEntry,
         codigo_tck: editingEntry.codigo_tck.toUpperCase(),
+        descripcion: editingEntry.descripcion.trim(),
         modificado: new Date().toISOString()
       });
       setEditingEntry(null);

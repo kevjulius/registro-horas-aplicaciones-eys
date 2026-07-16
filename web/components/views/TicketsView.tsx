@@ -270,6 +270,10 @@ export function TicketsView({
       notifyQuick(hourValidationMessage, "error");
       return;
     }
+    if (!quickDescription.trim()) {
+      notifyQuick("La descripcion de la atencion es obligatoria.", "error");
+      return;
+    }
 
     const entry: TimeEntry = {
       id: crypto.randomUUID(),

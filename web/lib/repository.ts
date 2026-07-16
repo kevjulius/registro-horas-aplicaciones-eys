@@ -388,6 +388,9 @@ export async function closeExpiredTickets(): Promise<{ updated: number }> {
 }
 
 export async function saveEntry(entry: TimeEntry) {
+  if (!entry.descripcion?.trim()) {
+    throw new Error("La descripcion de la atencion es obligatoria.");
+  }
   if (hasSupabaseConfig && supabase) {
     const { data } = await supabase.auth.getUser();
     await supabase.from("time_entries").upsert({
@@ -405,6 +408,10 @@ export async function saveEntry(entry: TimeEntry) {
 }
 
 export async function saveEntries(newEntries: TimeEntry[]) {
+  const missingDescription = newEntries.find((entry) => !entry.descripcion?.trim());
+  if (missingDescription) {
+    throw new Error(`La descripcion de la atencion es obligatoria para el ticket ${missingDescription.codigo_tck}.`);
+  }
   if (hasSupabaseConfig && supabase) {
     const { data } = await supabase.auth.getUser();
     const userId = data.user?.id ?? null;

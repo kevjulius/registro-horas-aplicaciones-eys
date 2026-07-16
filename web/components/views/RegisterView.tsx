@@ -75,6 +75,10 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
       notify("Completa TCK, sociedad y horas antes de guardar.", "error");
       return;
     }
+    if (!entry.descripcion.trim()) {
+      notify("La descripcion de la atencion es obligatoria.", "error");
+      return;
+    }
     const selectedTicket = approvedTickets.find((ticket) => ticket.codigo_tck.toUpperCase() === entry.codigo_tck.trim().toUpperCase());
     if (selectedTicket) {
       const periodMessage = ticketPeriodValidationMessage(selectedTicket, entry.fecha_reporte);
@@ -93,7 +97,7 @@ export function RegisterView({ profile, masters, tickets, onSaved }: { profile: 
     }
     try {
       setIsBusy(true);
-      await saveEntry({ ...entry, codigo_tck: entry.codigo_tck.toUpperCase(), modificado: new Date().toISOString() });
+      await saveEntry({ ...entry, codigo_tck: entry.codigo_tck.toUpperCase(), descripcion: entry.descripcion.trim(), modificado: new Date().toISOString() });
       setEntry(emptyEntry(profile));
       notify("Registro guardado con exito.", "success");
       onSaved();
