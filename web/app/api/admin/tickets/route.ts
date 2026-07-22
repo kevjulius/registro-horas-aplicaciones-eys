@@ -206,15 +206,38 @@ export async function PATCH(request: Request) {
   try {
     const supabase = adminClient();
     await requireAdmin(request, supabase);
+    const todayDate = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
       .from("tickets")
       .update({ estado: "Cerrado", updated_at: new Date().toISOString() })
       .eq("active", true)
       .eq("estado", "En Proceso")
-      .lt("fecha_termino", new Date().toISOString().slice(0, 10))
-      .select("id");
+      .lt("fecha_termino", todayDate)
+      .select("id, codigo_tck");
     if (error) throw error;
-    return NextResponse.json({ updated: data?.length ?? 0 });
+
+    const { data: closedTickets, error: closedTicketsError } = await supabase
+      .from("tickets")
+      .select("codigo_tck")
+      .eq("active", true)
+      .eq("estado", "Cerrado")
+      .lt("fecha_termino", todayDate);
+    if (closedTicketsError) throw closedTicketsError;
+
+    const closedCodes = Array.from(new Set((closedTickets ?? []).map((ticket) => ticket.codigo_tck).filter(Boolean)));
+    let entriesUpdated = 0;
+    if (closedCodes.length) {
+      const { data: updatedEntries, error: entriesError } = await supabase
+        .from("time_entries")
+        .update({ estado_tck: "Cerrado", modificado: new Date().toISOString() })
+        .in("codigo_tck", closedCodes)
+        .neq("estado_tck", "Cerrado")
+        .select("id");
+      if (entriesError) throw entriesError;
+      entriesUpdated = updatedEntries?.length ?? 0;
+    }
+
+    return NextResponse.json({ updated: data?.length ?? 0, entriesUpdated });
   } catch (error) {
     return NextResponse.json(
       { error: errorMessage(error, "No se pudo cerrar tickets vencidos.") },

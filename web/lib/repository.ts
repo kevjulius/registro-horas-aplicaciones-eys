@@ -399,7 +399,7 @@ export async function requestTicket(ticket: Ticket): Promise<{ tickets: Ticket[]
   return { tickets: next, ticketCode: requested.codigo_tck };
 }
 
-export async function closeExpiredTickets(): Promise<{ updated: number }> {
+export async function closeExpiredTickets(): Promise<{ updated: number; entriesUpdated: number }> {
   if (hasSupabaseConfig) {
     const response = await fetch("/api/admin/tickets", {
       method: "PATCH",
@@ -411,10 +411,11 @@ export async function closeExpiredTickets(): Promise<{ updated: number }> {
       throw new Error(payload.error ?? "No se pudo cerrar tickets vencidos.");
     }
 
-    return response.json() as Promise<{ updated: number }>;
+    return response.json() as Promise<{ updated: number; entriesUpdated: number }>;
   }
 
   const tickets = readLocal(ticketsKey, demoTickets);
+  const entries = readLocal(entriesKey, demoEntries);
   const todayDate = new Date().toISOString().slice(0, 10);
   let updated = 0;
   const next = tickets.map((ticket) => {
@@ -424,8 +425,20 @@ export async function closeExpiredTickets(): Promise<{ updated: number }> {
     }
     return ticket;
   });
+  const closedCodes = new Set(next
+    .filter((ticket) => ticket.active && ticket.estado === "Cerrado" && ticket.fecha_termino < todayDate)
+    .map((ticket) => ticket.codigo_tck));
+  let entriesUpdated = 0;
+  const nextEntries = entries.map((entry) => {
+    if (closedCodes.has(entry.codigo_tck) && entry.estado_tck !== "Cerrado") {
+      entriesUpdated += 1;
+      return { ...entry, estado_tck: "Cerrado" as const, modificado: new Date().toISOString() };
+    }
+    return entry;
+  });
   writeLocal(ticketsKey, next);
-  return { updated };
+  writeLocal(entriesKey, nextEntries);
+  return { updated, entriesUpdated };
 }
 
 export async function saveEntry(entry: TimeEntry) {

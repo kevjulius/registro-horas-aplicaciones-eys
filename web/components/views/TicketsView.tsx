@@ -314,7 +314,7 @@ export function TicketsView({
     try {
       setIsBusy(true);
       const result = await closeExpiredTickets();
-      notifyTicket(`Tickets vencidos cerrados: ${result.updated}.`, "success");
+      notifyTicket(`Tickets vencidos cerrados: ${result.updated}. Atenciones actualizadas: ${result.entriesUpdated}.`, "success");
       onChanged();
     } catch (error) {
       notifyTicket(error instanceof Error ? error.message : "No se pudo cerrar tickets vencidos.", "error");
