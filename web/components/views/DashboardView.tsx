@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { today } from "@/components/app-shared";
-import type { BiEntry, Team, TimeEntry } from "@/lib/types";
+import type { BiEntry, ExpectedHoursByMonth, Team, TimeEntry } from "@/lib/types";
 
 type ChartRow = {
   resource: string;
@@ -90,10 +90,20 @@ function HoursChart({
   );
 }
 
-export function DashboardView({ entries, biEntries, teams }: { entries: TimeEntry[]; biEntries: BiEntry[]; teams: Team[] }) {
+export function DashboardView({
+  entries,
+  biEntries,
+  teams,
+  expectedHoursByMonth
+}: {
+  entries: TimeEntry[];
+  biEntries: BiEntry[];
+  teams: Team[];
+  expectedHoursByMonth: ExpectedHoursByMonth[];
+}) {
   const [month, setMonth] = useState(today().slice(0, 7));
   const [teamId, setTeamId] = useState("Todos");
-  const [expectedHours, setExpectedHours] = useState(176);
+  const expectedHours = expectedHoursByMonth.find((item) => item.month === month)?.expected_hours ?? 176;
 
   const selectedTeam = teams.find((team) => team.id === teamId) ?? null;
   const monthEntries = useMemo(() => {
@@ -178,7 +188,7 @@ export function DashboardView({ entries, biEntries, teams }: { entries: TimeEntr
               min="0"
               step="1"
               value={expectedHours}
-              onChange={(event) => setExpectedHours(Number(event.target.value))}
+              readOnly
             />
           </label>
         </div>

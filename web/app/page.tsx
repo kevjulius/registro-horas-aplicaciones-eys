@@ -15,6 +15,7 @@ import {
   loadBiEntries,
   loadBiMasters,
   loadEntries,
+  loadExpectedHoursByMonth,
   loadMasters,
   loadProfiles,
   loadTeams,
@@ -25,7 +26,7 @@ import {
   signOut,
   updatePassword
 } from "@/lib/repository";
-import type { MasterData, Profile, Team, Ticket, TimeEntry } from "@/lib/types";
+import type { ExpectedHoursByMonth, MasterData, Profile, Team, Ticket, TimeEntry } from "@/lib/types";
 import type { BiEntry, BiMasterData } from "@/lib/types";
 
 const menuItems = [
@@ -75,6 +76,7 @@ export default function Home() {
   const [biEntries, setBiEntries] = useState<BiEntry[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [expectedHoursByMonth, setExpectedHoursByMonth] = useState<ExpectedHoursByMonth[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [visibleResources, setVisibleResources] = useState<string[]>([]);
   const [visibleApplications, setVisibleApplications] = useState<string[]>([]);
@@ -104,14 +106,15 @@ export default function Home() {
     const biAllowed = isBiRole(currentProfile);
     const masterData = appAllowed ? await loadMasters() : null;
     const biMasterData = biAllowed ? await loadBiMasters() : null;
-    const [entryData, biEntryData, profileData, teamData, ticketData, visibleResourceData, visibleApplicationData] = await Promise.all([
+    const [entryData, biEntryData, profileData, teamData, ticketData, visibleResourceData, visibleApplicationData, expectedHoursData] = await Promise.all([
       appAllowed && masterData ? loadEntries(currentProfile) : Promise.resolve([]),
       biAllowed ? loadBiEntries(currentProfile) : Promise.resolve([]),
       currentProfile.role === "administracion" ? loadProfiles() : Promise.resolve([]),
       currentProfile.role === "administracion" ? loadTeams() : Promise.resolve([]),
       appAllowed ? loadTickets(currentProfile) : Promise.resolve([]),
       appAllowed && masterData ? loadVisibleResources(currentProfile, masterData) : Promise.resolve([]),
-      appAllowed && masterData ? loadVisibleApplications(currentProfile, masterData) : Promise.resolve([])
+      appAllowed && masterData ? loadVisibleApplications(currentProfile, masterData) : Promise.resolve([]),
+      currentProfile.role === "administracion" ? loadExpectedHoursByMonth() : Promise.resolve([])
     ]);
     setMasters(masterData);
     setBiMasters(biMasterData);
@@ -122,6 +125,7 @@ export default function Home() {
     setTickets(ticketData);
     setVisibleResources(visibleResourceData);
     setVisibleApplications(visibleApplicationData);
+    setExpectedHoursByMonth(expectedHoursData);
   }
 
   async function handleLogin(event: React.FormEvent) {
@@ -169,6 +173,7 @@ export default function Home() {
     setBiEntries([]);
     setProfiles([]);
     setTeams([]);
+    setExpectedHoursByMonth([]);
     setTickets([]);
     setVisibleResources([]);
     setVisibleApplications([]);
@@ -282,7 +287,7 @@ export default function Home() {
         {page === "cargabi" && biMasters && <BiBulkUploadView profile={profile} masters={biMasters} onSaved={() => refresh(profile)} />}
         {page === "dashboard" &&
           (profile.role === "administracion" ? (
-            <DashboardView entries={entries} biEntries={biEntries} teams={teams} />
+            <DashboardView entries={entries} biEntries={biEntries} teams={teams} expectedHoursByMonth={expectedHoursByMonth} />
           ) : (
             <div className="notice">Solo administracion puede ver el dashboard.</div>
           ))}

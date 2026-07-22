@@ -2,7 +2,7 @@
 
 import { demoBiEntries, demoBiMasters, demoEntries, demoMasterData, demoProfiles, demoTeams, demoTickets } from "./demo-data";
 import { hasSupabaseConfig, supabase } from "./supabase";
-import type { BiEntry, BiMasterData, MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
+import type { BiEntry, BiMasterData, ExpectedHoursByMonth, MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
 
 const entriesKey = "eys.time_entries";
 const profilesKey = "eys.profiles";
@@ -11,6 +11,34 @@ const teamsKey = "eys.teams";
 const ticketsKey = "eys.tickets";
 const biMastersKey = "eys.bi.masters";
 const biEntriesKey = "eys.bi.entries";
+const expectedHoursKey = "eys.expected.hours";
+
+export const defaultExpectedHoursByMonth: ExpectedHoursByMonth[] = [
+  { month: "2026-01", expected_hours: 168 },
+  { month: "2026-02", expected_hours: 160 },
+  { month: "2026-03", expected_hours: 176 },
+  { month: "2026-04", expected_hours: 160 },
+  { month: "2026-05", expected_hours: 160 },
+  { month: "2026-06", expected_hours: 168 },
+  { month: "2026-07", expected_hours: 160 },
+  { month: "2026-08", expected_hours: 160 },
+  { month: "2026-09", expected_hours: 176 },
+  { month: "2026-10", expected_hours: 168 },
+  { month: "2026-11", expected_hours: 168 },
+  { month: "2026-12", expected_hours: 160 },
+  { month: "2027-01", expected_hours: 160 },
+  { month: "2027-02", expected_hours: 160 },
+  { month: "2027-03", expected_hours: 168 },
+  { month: "2027-04", expected_hours: 176 },
+  { month: "2027-05", expected_hours: 168 },
+  { month: "2027-06", expected_hours: 160 },
+  { month: "2027-07", expected_hours: 152 },
+  { month: "2027-08", expected_hours: 160 },
+  { month: "2027-09", expected_hours: 176 },
+  { month: "2027-10", expected_hours: 160 },
+  { month: "2027-11", expected_hours: 168 },
+  { month: "2027-12", expected_hours: 168 }
+];
 
 function readLocal<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -138,6 +166,19 @@ export async function loadBiMasters(): Promise<BiMasterData> {
     return payload.masters;
   }
   return readLocal(biMastersKey, demoBiMasters);
+}
+
+export async function loadExpectedHoursByMonth(): Promise<ExpectedHoursByMonth[]> {
+  if (hasSupabaseConfig && supabase) {
+    const { data, error } = await supabase
+      .from("dashboard_expected_hours")
+      .select("month, expected_hours")
+      .order("month");
+
+    if (!error && data?.length) return data as ExpectedHoursByMonth[];
+  }
+
+  return readLocal(expectedHoursKey, defaultExpectedHoursByMonth);
 }
 
 export async function saveBiMasters(data: BiMasterData): Promise<BiMasterData> {

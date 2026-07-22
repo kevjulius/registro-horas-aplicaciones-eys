@@ -70,6 +70,11 @@ export type AttentionRule = {
   max_dias: number | null;
 };
 
+export type ExpectedHoursByMonth = {
+  month: string;
+  expected_hours: number;
+};
+
 export type Team = {
   id: string;
   name: string;
