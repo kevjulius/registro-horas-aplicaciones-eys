@@ -222,8 +222,19 @@ export async function saveMasters(data: MasterData): Promise<MasterData> {
 
 export async function loadEntries(profile: Profile): Promise<TimeEntry[]> {
   if (hasSupabaseConfig && supabase) {
-    const { data } = await supabase.from("time_entries").select("*").order("fecha_reporte", { ascending: false });
-    return (data ?? []) as TimeEntry[];
+    const rows: TimeEntry[] = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("time_entries")
+        .select("*")
+        .order("fecha_reporte", { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      rows.push(...((data ?? []) as TimeEntry[]));
+      if (!data || data.length < pageSize) break;
+    }
+    return rows;
   }
   const entries = readLocal(entriesKey, demoEntries);
   if (profile.role === "administracion") return entries;
