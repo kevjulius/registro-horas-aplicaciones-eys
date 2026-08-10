@@ -42,11 +42,26 @@ function mapEntry(row: Record<string, unknown>): BiEntry {
 }
 
 async function readEntries(supabase: ReturnType<typeof adminClient>, profile: Profile) {
-  let query = supabase.from("bi_entries").select("*").eq("active", true).order("created_at", { ascending: false });
-  if (profile.role === "trabajador_bi") query = query.eq("asignado_a", profile.resource_name ?? "");
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []).map(mapEntry);
+  const rows: Array<Record<string, unknown>> = [];
+  const pageSize = 1000;
+
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase
+      .from("bi_entries")
+      .select("*")
+      .eq("active", true)
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (profile.role === "trabajador_bi") query = query.eq("asignado_a", profile.resource_name ?? "");
+
+    const { data, error } = await query;
+    if (error) throw error;
+    rows.push(...((data ?? []) as Array<Record<string, unknown>>));
+    if (!data || data.length < pageSize) break;
+  }
+
+  return rows.map(mapEntry);
 }
 
 function normalizeCode(value: string) {
