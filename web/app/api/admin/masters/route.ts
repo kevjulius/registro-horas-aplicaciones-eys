@@ -102,21 +102,34 @@ export async function PUT(request: Request) {
     await requireAdmin(request, supabase);
 
     const { masters } = (await request.json()) as { masters: MasterData };
+    const todayDate = new Date().toISOString().slice(0, 10);
 
     for (const key of Object.keys(masterTables) as MasterListKey[]) {
       const table = masterTables[key];
       const values = uniqueClean(masters[key] ?? []);
       const valueSet = new Set(values);
+      let existingApplicationDates = new Map<string, string>();
+
+      if (key === "aplicaciones" && values.length) {
+        const { data: existingApps, error: existingAppsError } = await supabase
+          .from("applications")
+          .select("name, fecha_creacion");
+        if (existingAppsError) throw existingAppsError;
+        existingApplicationDates = new Map(
+          (existingApps ?? []).map((item) => [item.name, item.fecha_creacion ?? ""])
+        );
+      }
 
       if (values.length) {
         const rows = key === "aplicaciones"
           ? values.map((name) => {
               const detail = masters.aplicacionesDetalle?.find((item) => item.name.trim() === name);
+              const existingDate = existingApplicationDates.get(name);
               return {
                 name,
                 company: detail?.company?.trim() ?? "",
                 service: detail?.service?.trim() ?? "",
-                ...(detail?.fecha_creacion ? { fecha_creacion: detail.fecha_creacion } : {}),
+                fecha_creacion: existingDate || detail?.fecha_creacion || todayDate,
                 active: true
               };
             })

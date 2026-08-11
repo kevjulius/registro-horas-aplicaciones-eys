@@ -794,6 +794,19 @@ section.grid > button:not(.icon-button) {
   min-width: 210px;
 }
 
+.readonly-field {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #eef4fb;
+  color: var(--muted);
+  padding: 0 14px;
+  font-weight: 800;
+}
+
 .register-card,
 .ticket-form-card {
   gap: 18px;

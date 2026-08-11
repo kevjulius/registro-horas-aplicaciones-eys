@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
+import { today } from "@/components/app-shared";
 import { saveMasters, saveProfiles, saveTeams } from "@/lib/repository";
 import type { MasterData, Profile, Team } from "@/lib/types";
 
@@ -76,7 +77,7 @@ export function AdminView({
         name: newApplication.name.trim(),
         company: newApplication.company.trim(),
         service: newApplication.service.trim(),
-        fecha_creacion: newApplication.fecha_creacion
+        fecha_creacion: today()
       };
       const nextDetails = [...localMasters.aplicacionesDetalle, nextDetail].sort((a, b) => a.name.localeCompare(b.name));
       const updated = {
@@ -353,7 +354,7 @@ export function AdminView({
                 </label>
                 <label>
                   Fecha creacion
-                  <input type="date" value={newApplication.fecha_creacion} onChange={(e) => setNewApplication({ ...newApplication, fecha_creacion: e.target.value })} />
+                  <span className="readonly-field">{today()}</span>
                 </label>
                 <div className="toolbar app-create-actions">
                   <button type="button" onClick={addMaster}><Plus size={16} /> Agregar aplicativo</button>
@@ -399,7 +400,7 @@ export function AdminView({
                       <input value={value} onChange={(e) => updateMasterValue(index, e.target.value)} />
                       <input value={detail.company} onChange={(e) => updateApplicationDetail(index, { company: e.target.value })} />
                       <input value={detail.service} onChange={(e) => updateApplicationDetail(index, { service: e.target.value })} />
-                      <input type="date" value={detail.fecha_creacion ?? ""} onChange={(e) => updateApplicationDetail(index, { fecha_creacion: e.target.value })} />
+                      <span className="readonly-field">{detail.fecha_creacion || "Sin fecha"}</span>
                       <button className="secondary icon-button" title="Eliminar valor" onClick={() => deleteMasterValue(index)}>
                         <Trash2 size={16} />
                       </button>
