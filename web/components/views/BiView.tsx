@@ -24,6 +24,10 @@ function emptyBiEntry(profile: Profile, masters: BiMasterData): BiEntry {
   };
 }
 
+function biEntrySortValue(entry: BiEntry) {
+  return entry.created_at || `${entry.fecha_inicio}T${entry.correlativo}`;
+}
+
 export function BiView({
   profile,
   masters,
@@ -62,20 +66,22 @@ export function BiView({
 
   const filteredEntries = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return entries.filter((item) => [
-      item.asignado_a,
-      item.formato,
-      item.solicitado_por,
-      item.servicio,
-      item.tipo_atencion,
-      item.estado,
-      item.descripcion
-    ].join(" ").toLowerCase().includes(term)
-      && (resourceFilter === "Todos" || item.asignado_a === resourceFilter)
-      && (stateFilter === "Todos" || item.estado === stateFilter)
-      && (serviceFilter === "Todos" || item.servicio === serviceFilter)
-      && (!fromDate || item.fecha_inicio >= fromDate)
-      && (!toDate || item.fecha_inicio <= toDate));
+    return entries
+      .filter((item) => [
+        item.asignado_a,
+        item.formato,
+        item.solicitado_por,
+        item.servicio,
+        item.tipo_atencion,
+        item.estado,
+        item.descripcion
+      ].join(" ").toLowerCase().includes(term)
+        && (resourceFilter === "Todos" || item.asignado_a === resourceFilter)
+        && (stateFilter === "Todos" || item.estado === stateFilter)
+        && (serviceFilter === "Todos" || item.servicio === serviceFilter)
+        && (!fromDate || item.fecha_inicio >= fromDate)
+        && (!toDate || item.fecha_inicio <= toDate))
+      .sort((a, b) => biEntrySortValue(b).localeCompare(biEntrySortValue(a)));
   }, [entries, fromDate, resourceFilter, search, serviceFilter, stateFilter, toDate]);
 
   function csvValue(value: string | number | boolean | null | undefined) {

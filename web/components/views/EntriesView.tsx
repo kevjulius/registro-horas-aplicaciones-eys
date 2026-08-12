@@ -55,6 +55,10 @@ function exportEntriesCsv(entries: TimeEntry[]) {
   URL.revokeObjectURL(url);
 }
 
+function entrySortValue(entry: TimeEntry) {
+  return `${entry.fecha_reporte}T${entry.modificado ?? ""}`;
+}
+
 export function EntriesView({ profile, masters, tickets, entries, onChanged }: { profile: Profile; masters: MasterData; tickets: Ticket[]; entries: TimeEntry[]; onChanged: () => void }) {
   const defaultResourceFilter = profile.resource_name ?? "Todos";
   const [resourceFilter, setResourceFilter] = useState(defaultResourceFilter);
@@ -89,15 +93,17 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
     return Array.from(new Set([...entries.map((entry) => entry.recurso), profile.resource_name].filter(Boolean) as string[])).sort();
   }, [entries, profile.resource_name]);
   const filteredEntries = useMemo(() => {
-    return entries.filter((entry) => {
-      if (focusedEntryId && entry.id !== focusedEntryId) return false;
-      if (resourceFilter !== "Todos" && entry.recurso !== resourceFilter) return false;
-      if (statusFilter !== "Todos" && entry.estado_tck !== statusFilter) return false;
-      if (codeFilter && !entry.codigo_tck.toLowerCase().includes(codeFilter.toLowerCase())) return false;
-      if (fromDate && entry.fecha_reporte < fromDate) return false;
-      if (toDate && entry.fecha_reporte > toDate) return false;
-      return true;
-    });
+    return entries
+      .filter((entry) => {
+        if (focusedEntryId && entry.id !== focusedEntryId) return false;
+        if (resourceFilter !== "Todos" && entry.recurso !== resourceFilter) return false;
+        if (statusFilter !== "Todos" && entry.estado_tck !== statusFilter) return false;
+        if (codeFilter && !entry.codigo_tck.toLowerCase().includes(codeFilter.toLowerCase())) return false;
+        if (fromDate && entry.fecha_reporte < fromDate) return false;
+        if (toDate && entry.fecha_reporte > toDate) return false;
+        return true;
+      })
+      .sort((a, b) => entrySortValue(b).localeCompare(entrySortValue(a)));
   }, [entries, resourceFilter, statusFilter, codeFilter, fromDate, toDate, focusedEntryId]);
 
   async function remove(id: string) {

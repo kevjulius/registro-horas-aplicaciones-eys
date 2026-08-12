@@ -20,6 +20,10 @@ import { closeExpiredTickets, requestTicket, saveEntry, saveTickets } from "@/li
 import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
 import type { MasterData, Profile, Ticket, TimeEntry } from "@/lib/types";
 
+function ticketSortValue(ticket: Ticket) {
+  return ticket.created_at || `${ticket.fecha_solicitud}T${ticket.codigo_tck}`;
+}
+
 export function TicketsView({
   profile,
   masters,
@@ -84,26 +88,28 @@ export function TicketsView({
 
   const filteredTickets = useMemo(() => {
     const search = ticketSearch.trim().toLowerCase();
-    return tickets.filter((ticket) => {
-      if (!isAdmin && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
-      if (ticketDateFrom && ticket.fecha_solicitud < ticketDateFrom) return false;
-      if (ticketDateTo && ticket.fecha_solicitud > ticketDateTo) return false;
-      if (ticketStatusFilter !== "Todos" && ticket.estado !== ticketStatusFilter) return false;
-      if (ticketTypeFilter !== "Todos" && ticket.tipo_atencion !== ticketTypeFilter) return false;
-      if (ticketResponsibleFilter !== "Todos" && !ticket.responsables.includes(ticketResponsibleFilter)) return false;
-      if (search) {
-        const haystack = [
-          ticket.codigo_tck,
-          ticket.sistema,
-          ticket.usuario_solicitante,
-          ticket.alcance_correo,
-          ticket.subcategoria_atencion,
-          ticket.responsables.join(" ")
-        ].join(" ").toLowerCase();
-        if (!haystack.includes(search)) return false;
-      }
-      return true;
-    });
+    return tickets
+      .filter((ticket) => {
+        if (!isAdmin && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
+        if (ticketDateFrom && ticket.fecha_solicitud < ticketDateFrom) return false;
+        if (ticketDateTo && ticket.fecha_solicitud > ticketDateTo) return false;
+        if (ticketStatusFilter !== "Todos" && ticket.estado !== ticketStatusFilter) return false;
+        if (ticketTypeFilter !== "Todos" && ticket.tipo_atencion !== ticketTypeFilter) return false;
+        if (ticketResponsibleFilter !== "Todos" && !ticket.responsables.includes(ticketResponsibleFilter)) return false;
+        if (search) {
+          const haystack = [
+            ticket.codigo_tck,
+            ticket.sistema,
+            ticket.usuario_solicitante,
+            ticket.alcance_correo,
+            ticket.subcategoria_atencion,
+            ticket.responsables.join(" ")
+          ].join(" ").toLowerCase();
+          if (!haystack.includes(search)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => ticketSortValue(b).localeCompare(ticketSortValue(a)));
   }, [isAdmin, profile.resource_name, tickets, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
 
   function clearTicketFilters() {
