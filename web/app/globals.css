@@ -517,11 +517,19 @@ th {
 }
 
 .table-card {
-  overflow-x: auto;
+  max-height: 620px;
+  overflow: auto;
 }
 
 .table-card table {
   min-width: 1500px;
+}
+
+.table-card th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
 }
 
 .entries-table-card {
