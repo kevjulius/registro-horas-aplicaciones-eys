@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { today } from "@/components/app-shared";
-import type { BiEntry, ExpectedHoursByMonth, Team, TimeEntry } from "@/lib/types";
+import type { BiEntry, ExpectedHoursByMonth, Profile, Team, TimeEntry } from "@/lib/types";
 
 type ChartRow = {
   resource: string;
@@ -94,16 +94,30 @@ export function DashboardView({
   entries,
   biEntries,
   teams,
+  profiles,
   expectedHoursByMonth
 }: {
   entries: TimeEntry[];
   biEntries: BiEntry[];
   teams: Team[];
+  profiles: Profile[];
   expectedHoursByMonth: ExpectedHoursByMonth[];
 }) {
   const [month, setMonth] = useState(today().slice(0, 7));
   const [teamId, setTeamId] = useState("Todos");
   const expectedHours = expectedHoursByMonth.find((item) => item.month === month)?.expected_hours ?? 176;
+  const activeResources = useMemo(() => {
+    return new Set(
+      profiles
+        .filter((profile) => profile.active && profile.resource_name)
+        .map((profile) => profile.resource_name as string)
+    );
+  }, [profiles]);
+
+  function onlyActiveResources(resources: string[]) {
+    if (!activeResources.size) return resources;
+    return resources.filter((resource) => activeResources.has(resource));
+  }
 
   const selectedTeam = teams.find((team) => team.id === teamId) ?? null;
   const monthEntries = useMemo(() => {
@@ -115,9 +129,9 @@ export function DashboardView({
   }, [entries, month, selectedTeam]);
 
   const appResources = useMemo(() => {
-    if (selectedTeam) return selectedTeam.resources;
-    return Array.from(new Set(teams.flatMap((team) => team.resources))).sort((a, b) => a.localeCompare(b));
-  }, [selectedTeam, teams]);
+    const resources = selectedTeam ? selectedTeam.resources : Array.from(new Set(teams.flatMap((team) => team.resources)));
+    return onlyActiveResources(resources).sort((a, b) => a.localeCompare(b));
+  }, [activeResources, selectedTeam, teams]);
 
   const appRows = useMemo(() => {
     const totals = new Map<string, number>();
@@ -149,8 +163,8 @@ export function DashboardView({
   }, [biEntries, month]);
 
   const biResources = useMemo(() => {
-    return Array.from(new Set(biEntries.map((entry) => entry.asignado_a))).sort((a, b) => a.localeCompare(b));
-  }, [biEntries]);
+    return onlyActiveResources(Array.from(new Set(biEntries.map((entry) => entry.asignado_a)))).sort((a, b) => a.localeCompare(b));
+  }, [activeResources, biEntries]);
 
   const biZeroResources = useMemo(() => {
     const withHours = new Set(biRows.map((row) => row.resource));

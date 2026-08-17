@@ -287,7 +287,7 @@ export default function Home() {
         {page === "cargabi" && biMasters && <BiBulkUploadView profile={profile} masters={biMasters} onSaved={() => refresh(profile)} />}
         {page === "dashboard" &&
           (profile.role === "administracion" ? (
-            <DashboardView entries={entries} biEntries={biEntries} teams={teams} expectedHoursByMonth={expectedHoursByMonth} />
+            <DashboardView entries={entries} biEntries={biEntries} teams={teams} profiles={profiles} expectedHoursByMonth={expectedHoursByMonth} />
           ) : (
             <div className="notice">Solo administracion puede ver el dashboard.</div>
           ))}
