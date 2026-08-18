@@ -523,13 +523,16 @@ th {
 
 .table-card table {
   min-width: 1500px;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .table-card th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 3;
   background: #fff;
+  box-shadow: 0 1px 0 var(--border);
 }
 
 .entries-table-card {
@@ -537,7 +540,7 @@ th {
 }
 
 .entries-table-card table {
-  min-width: 0;
+  min-width: 1850px;
   table-layout: fixed;
   font-size: 13px;
 }
@@ -563,31 +566,48 @@ th {
 .entries-table-card .cell-fecha_reporte,
 .entries-table-card .cell-fecha_inicio,
 .entries-table-card .cell-fecha_fin {
-  width: 92px;
+  width: 104px;
 }
 
 .entries-table-card .cell-codigo_tck {
-  width: 88px;
+  width: 104px;
 }
 
 .entries-table-card .cell-horas_invertidas {
-  width: 76px;
+  width: 82px;
 }
 
 .entries-table-card .cell-estado_tck {
-  width: 96px;
+  width: 108px;
 }
 
 .entries-table-card .cell-en_servicio,
 .entries-table-card .cell-aplicativo_se_encuentra {
-  width: 86px;
+  width: 98px;
 }
 
-.entries-table-card .cell-recurso {
+.entries-table-card .cell-usuario_reporta {
   width: 112px;
 }
 
+.entries-table-card .cell-recurso {
+  width: 110px;
+}
+
+.entries-table-card .cell-aplicativo {
+  width: 230px;
+}
+
+.entries-table-card .cell-sociedad {
+  width: 140px;
+}
+
+.entries-table-card .cell-tipo_atencion {
+  width: 220px;
+}
+
 .entries-table-card .description-cell {
+  width: 280px;
   min-width: 0;
   max-width: none;
 }

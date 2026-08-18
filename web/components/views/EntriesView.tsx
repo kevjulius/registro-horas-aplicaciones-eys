@@ -196,7 +196,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
         </div>
         <div className="toolbar">
           <span className="pill">Registros: {filteredEntries.length}</span>
-          <span className="pill muted-pill">Horas: {filteredEntries.reduce((sum, entry) => sum + Number(entry.horas_invertidas), 0)}</span>
+          <span className="pill muted-pill">Horas: {Number(filteredEntries.reduce((sum, entry) => sum + Number(entry.horas_invertidas), 0).toFixed(2))}</span>
           <button className="secondary" type="button" disabled={!filteredEntries.length || isBusy} onClick={() => exportEntriesCsv(filteredEntries)}>
             <Download size={16} /> Exportar CSV
           </button>
