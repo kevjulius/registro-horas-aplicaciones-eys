@@ -424,6 +424,23 @@ th {
   color: #991b1b;
 }
 
+.notice-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notice-with-action span {
+  flex: 1;
+}
+
+.notice-with-action button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 8px 12px;
+}
+
 .notice p {
   margin: 0 0 8px;
 }

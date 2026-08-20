@@ -57,6 +57,7 @@ export function TicketsView({
   const [ticketView, setTicketView] = useState<"crear" | "listado">("listado");
   const [ticketMessage, setTicketMessage] = useState("");
   const [ticketMessageType, setTicketMessageType] = useState<"success" | "error">("success");
+  const [ticketMessageCode, setTicketMessageCode] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [quickTicket, setQuickTicket] = useState<Ticket | null>(null);
   const [quickDate, setQuickDate] = useState(today());
@@ -71,14 +72,18 @@ export function TicketsView({
   const [ticketDateFrom, setTicketDateFrom] = useState("");
   const [ticketDateTo, setTicketDateTo] = useState("");
 
-  const clearTicketMessage = useCallback(() => setTicketMessage(""), []);
+  const clearTicketMessage = useCallback(() => {
+    setTicketMessage("");
+    setTicketMessageCode("");
+  }, []);
   const clearQuickMessage = useCallback(() => setQuickMessage(""), []);
   useAutoDismissNotice(ticketMessage, clearTicketMessage);
   useAutoDismissNotice(quickMessage, clearQuickMessage);
 
-  function notifyTicket(text: string, type: "success" | "error") {
+  function notifyTicket(text: string, type: "success" | "error", ticketCode = "") {
     setTicketMessage(text);
     setTicketMessageType(type);
+    setTicketMessageCode(ticketCode);
   }
 
   function notifyQuick(text: string, type: "success" | "error") {
@@ -119,6 +124,18 @@ export function TicketsView({
     setTicketResponsibleFilter(profile.resource_name ?? "Todos");
     setTicketDateFrom("");
     setTicketDateTo("");
+  }
+
+  function goToTicket(ticketCode: string) {
+    setTicketView("listado");
+    setTicketSearch(ticketCode);
+    setTicketStatusFilter("Todos");
+    setTicketTypeFilter("Todos");
+    setTicketResponsibleFilter("Todos");
+    setTicketDateFrom("");
+    setTicketDateTo("");
+    setEditingTicket(null);
+    setQuickTicket(null);
   }
 
   function normalizeTicket(values: Ticket): Ticket {
@@ -218,7 +235,7 @@ export function TicketsView({
         const result = await requestTicket({ ...normalizedTicket, approval_status: "Aprobado", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
         generatedCode = result.ticketCode ?? generatedCode;
       }
-      notifyTicket(generatedCode ? `${successMessage} Codigo generado: ${generatedCode}.` : successMessage, "success");
+      notifyTicket(generatedCode ? `${successMessage} Codigo generado: ${generatedCode}.` : successMessage, "success", generatedCode);
       setDraftTicket(newDraftTicket());
       setEditingTicket(null);
       setTicketView("listado");
@@ -347,7 +364,16 @@ export function TicketsView({
         <button className={ticketView === "listado" ? "active" : ""} type="button" disabled={isBusy} onClick={() => { setTicketMessage(""); setTicketView("listado"); }}>Listado de tickets</button>
       </div>
 
-      {ticketMessage && <pre className={`notice ${ticketMessageType}`}>{ticketMessage}</pre>}
+      {ticketMessage && (
+        <div className={`notice ${ticketMessageType} notice-with-action`}>
+          <span>{ticketMessage}</span>
+          {ticketMessageType === "success" && ticketMessageCode && (
+            <button className="secondary" type="button" disabled={isBusy} onClick={() => goToTicket(ticketMessageCode)}>
+              Ir al ticket
+            </button>
+          )}
+        </div>
+      )}
 
       {ticketView === "crear" && (
         <TicketForm
