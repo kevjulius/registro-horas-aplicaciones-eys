@@ -178,6 +178,42 @@ export function SelectField({
   );
 }
 
+export function SearchableField({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder,
+  disabled
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const listId = useMemo(() => `searchable-${crypto.randomUUID()}`, []);
+
+  return (
+    <label>
+      {label}
+      <input
+        list={listId}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder ?? "Escribe para buscar..."}
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+    </label>
+  );
+}
+
 function splitSociedades(value: string) {
   return value
     .split("|")
@@ -328,7 +364,13 @@ export function TicketForm({
             Fecha termino
             <input type="date" value={ticket.fecha_termino} onChange={(event) => onPatch({ fecha_termino: event.target.value })} />
           </label>
-          <SelectField label="Usuario solicitante" value={ticket.usuario_solicitante} options={masters.usuariosReporta} onChange={(value) => onPatch({ usuario_solicitante: value })} />
+          <SearchableField
+            label="Usuario solicitante"
+            value={ticket.usuario_solicitante}
+            options={masters.usuariosReporta}
+            onChange={(value) => onPatch({ usuario_solicitante: value })}
+            placeholder="Escribe el solicitante"
+          />
         </div>
       </div>
 

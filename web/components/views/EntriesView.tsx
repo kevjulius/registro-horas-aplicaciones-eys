@@ -59,12 +59,16 @@ function entrySortValue(entry: TimeEntry) {
   return `${entry.fecha_reporte}T${entry.modificado ?? ""}`;
 }
 
+function currentMonthStart() {
+  return `${today().slice(0, 7)}-01`;
+}
+
 export function EntriesView({ profile, masters, tickets, entries, onChanged }: { profile: Profile; masters: MasterData; tickets: Ticket[]; entries: TimeEntry[]; onChanged: () => void }) {
   const defaultResourceFilter = profile.resource_name ?? "Todos";
   const [resourceFilter, setResourceFilter] = useState(defaultResourceFilter);
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [codeFilter, setCodeFilter] = useState("");
-  const [fromDate, setFromDate] = useState("");
+  const [fromDate, setFromDate] = useState(currentMonthStart());
   const [toDate, setToDate] = useState("");
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editMessage, setEditMessage] = useState("");
@@ -130,7 +134,7 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
     setResourceFilter(defaultResourceFilter);
     setStatusFilter("Todos");
     setCodeFilter("");
-    setFromDate("");
+    setFromDate(currentMonthStart());
     setToDate("");
     setFocusedEntryId("");
   }
