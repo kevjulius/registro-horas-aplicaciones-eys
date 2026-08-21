@@ -248,20 +248,68 @@ export function MultiSelectField({
   }
 
   return (
+    <MultiDropdownField
+      label={label}
+      selected={selected}
+      options={options}
+      onToggle={toggle}
+      disabled={disabled}
+      emptyText="Sin formatos seleccionados"
+    />
+  );
+}
+
+export function MultiDropdownField({
+  label,
+  selected,
+  options,
+  onToggle,
+  disabled,
+  emptyText = "Sin valores seleccionados"
+}: {
+  label: string;
+  selected: string[];
+  options: readonly string[];
+  onToggle: (value: string) => void;
+  disabled?: boolean;
+  emptyText?: string;
+}) {
+  const cleanSelected = selected.filter(Boolean);
+  const availableOptions = options.filter((option) => !cleanSelected.includes(option));
+
+  return (
     <label>
       {label}
-      <div className="multi-select">
-        {options.map((option) => (
-          <button
-            key={option}
-            className={selected.includes(option) ? "active" : ""}
-            type="button"
-            disabled={disabled}
-            onClick={() => toggle(option)}
-          >
-            {option}
-          </button>
-        ))}
+      <div className="multi-dropdown-field">
+        <select
+          value=""
+          disabled={disabled || availableOptions.length === 0}
+          onChange={(event) => {
+            if (!event.target.value) return;
+            onToggle(event.target.value);
+          }}
+        >
+          <option value="">{availableOptions.length ? "Agregar..." : "Todos seleccionados"}</option>
+          {availableOptions.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+        <div className="selected-chips">
+          {cleanSelected.map((option) => (
+            <span key={option}>
+              {option}
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onToggle(option)}
+                aria-label={`Quitar ${option}`}
+              >
+                x
+              </button>
+            </span>
+          ))}
+          {cleanSelected.length === 0 && <small>{emptyText}</small>}
+        </div>
       </div>
     </label>
   );
@@ -384,22 +432,14 @@ export function TicketForm({
           <SelectField label="Aplicativo se encuentra operativo" value={ticket.aplicativo_se_encuentra} options={siNo} onChange={(value) => onPatch({ aplicativo_se_encuentra: value as "Si" | "No" })} />
           <SelectField label="Es un servicio de integracion?" value={ticket.en_servicio} options={siNo} onChange={(value) => onPatch({ en_servicio: value as "Si" | "No" })} />
           <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} onChange={(value) => onPatch({ formato: value })} />
-          <label>
-            Responsables
-            <div className="multi-select team-select">
-              {responsibleOptions.map((resource) => (
-                <button
-                  key={resource}
-                  type="button"
-                  className={ticket.responsables.includes(resource) ? "active" : ""}
-                  disabled={responsibilitiesDisabled}
-                  onClick={() => onToggleResponsible(resource)}
-                >
-                  {resource}
-                </button>
-              ))}
-            </div>
-          </label>
+          <MultiDropdownField
+            label="Responsables"
+            selected={ticket.responsables}
+            options={responsibleOptions}
+            onToggle={onToggleResponsible}
+            disabled={responsibilitiesDisabled || disabled}
+            emptyText="Sin responsables seleccionados"
+          />
         </div>
       </div>
 

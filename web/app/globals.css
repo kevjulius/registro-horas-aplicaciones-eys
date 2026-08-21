@@ -803,6 +803,65 @@ section.grid > button:not(.icon-button) {
   border-color: var(--border);
 }
 
+.multi-dropdown-field {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.multi-dropdown-field select {
+  width: 100%;
+}
+
+.selected-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 42px;
+  align-items: flex-start;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.selected-chips span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 8px 5px 11px;
+  border: 1px solid #22c55e;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.selected-chips button {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #bbf7d0;
+  color: #14532d;
+  line-height: 1;
+}
+
+.selected-chips button:hover {
+  background: #86efac;
+}
+
+.selected-chips small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .app-master-values {
   min-width: 0;
   width: 100%;
