@@ -178,7 +178,7 @@ export function DashboardView({
   const isAdmin = profile.role === "administracion";
   const isBiUser = ["trabajador_bi", "adminbi"].includes(profile.role);
   const ownResource = profile.resource_name ?? "";
-  const [dashboardTab, setDashboardTab] = useState<"mensual" | "diario">("mensual");
+  const [dashboardTab, setDashboardTab] = useState<"mensual" | "diario">(isAdmin ? "mensual" : "diario");
   const [month, setMonth] = useState(today().slice(0, 7));
   const [teamId, setTeamId] = useState("Todos");
   const [dailyArea, setDailyArea] = useState<"Aplicaciones" | "BI">(isBiUser ? "BI" : "Aplicaciones");
@@ -257,6 +257,12 @@ export function DashboardView({
     : (ownResource ? [ownResource] : []);
 
   useEffect(() => {
+    if (!isAdmin && dashboardTab !== "diario") {
+      setDashboardTab("diario");
+    }
+  }, [dashboardTab, isAdmin]);
+
+  useEffect(() => {
     if (dailyResourceOptions.length === 0) {
       setDailyResource("");
       return;
@@ -304,16 +310,18 @@ export function DashboardView({
         </div>
       </div>
 
-      <div className="segmented">
-        <button className={dashboardTab === "mensual" ? "active" : ""} type="button" onClick={() => setDashboardTab("mensual")}>
-          Reporte Mensual
-        </button>
-        <button className={dashboardTab === "diario" ? "active" : ""} type="button" onClick={() => setDashboardTab("diario")}>
-          Detalle Diario por Recurso
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="segmented">
+          <button className={dashboardTab === "mensual" ? "active" : ""} type="button" onClick={() => setDashboardTab("mensual")}>
+            Reporte Mensual
+          </button>
+          <button className={dashboardTab === "diario" ? "active" : ""} type="button" onClick={() => setDashboardTab("diario")}>
+            Detalle Diario por Recurso
+          </button>
+        </div>
+      )}
 
-      {dashboardTab === "mensual" && (
+      {isAdmin && dashboardTab === "mensual" && (
         <>
           <div className="card grid">
             <div className="grid grid-3 filters">
