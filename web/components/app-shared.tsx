@@ -325,6 +325,7 @@ export function TicketForm({
   onClose,
   canEditApproval = false,
   responsibilitiesDisabled = false,
+  limitedEdit = false,
   showReceptionDate = true,
   resourceOptions,
   applicationOptions,
@@ -339,11 +340,13 @@ export function TicketForm({
   onClose?: () => void;
   canEditApproval?: boolean;
   responsibilitiesDisabled?: boolean;
+  limitedEdit?: boolean;
   showReceptionDate?: boolean;
   resourceOptions?: string[];
   applicationOptions?: string[];
   disabled?: boolean;
 }) {
+  const readOnlyField = disabled || limitedEdit;
   const responsibleOptions = resourceOptions ?? masters.recursos;
   const systemOptions = applicationOptions ?? masters.aplicaciones;
   const attentionDetails = masters.tiposAtencionDetalle.length
@@ -364,6 +367,7 @@ export function TicketForm({
         <div>
           <h3>{ticket.codigo_tck || "Nuevo ticket"}</h3>
           <p className="muted">{ticket.codigo_tck ? "Edita los datos del ticket." : "El codigo se generara automaticamente al guardar."}</p>
+          {limitedEdit && <p className="muted">Solo puedes modificar fecha inicio, fecha termino y responsables.</p>}
         </div>
         {onClose && (
           <button className="secondary icon-button" type="button" disabled={disabled} onClick={onClose} title="Cerrar edicion">
@@ -377,14 +381,14 @@ export function TicketForm({
         <div className="grid grid-4">
           <label>
             Tipo de atencion
-            <select value={ticket.tipo_atencion} onChange={(event) => onPatch({ tipo_atencion: event.target.value as Ticket["tipo_atencion"], subcategoria_atencion: "" })}>
+            <select disabled={readOnlyField} value={ticket.tipo_atencion} onChange={(event) => onPatch({ tipo_atencion: event.target.value as Ticket["tipo_atencion"], subcategoria_atencion: "" })}>
               {(attentionTypes.length ? attentionTypes : ticketAttentionTypes).map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
           </label>
-          <SelectField label="Subcategoria" value={ticket.subcategoria_atencion} options={subcategories} onChange={(value) => onPatch({ subcategoria_atencion: value })} />
+          <SelectField disabled={readOnlyField} label="Subcategoria" value={ticket.subcategoria_atencion} options={subcategories} onChange={(value) => onPatch({ subcategoria_atencion: value })} />
           <label>
             Estado
-            <select value={ticket.estado} onChange={(event) => onPatch({ estado: event.target.value as Ticket["estado"] })}>
+            <select disabled={readOnlyField} value={ticket.estado} onChange={(event) => onPatch({ estado: event.target.value as Ticket["estado"] })}>
               {ticketEstados.map((state) => <option key={state} value={state}>{state}</option>)}
             </select>
           </label>
@@ -400,17 +404,17 @@ export function TicketForm({
         <div className="grid grid-4">
           <label>
             Fecha inicio
-            <input type="date" value={ticket.fecha_solicitud} onChange={(event) => onPatch({ fecha_solicitud: event.target.value })} />
+            <input disabled={disabled} type="date" value={ticket.fecha_solicitud} onChange={(event) => onPatch({ fecha_solicitud: event.target.value })} />
           </label>
           {showReceptionDate && (
             <label>
               Fecha recepcion
-              <input type="date" value={ticket.fecha_recepcion} onChange={(event) => onPatch({ fecha_recepcion: event.target.value })} />
+              <input disabled={readOnlyField} type="date" value={ticket.fecha_recepcion} onChange={(event) => onPatch({ fecha_recepcion: event.target.value })} />
             </label>
           )}
           <label>
             Fecha termino
-            <input type="date" value={ticket.fecha_termino} onChange={(event) => onPatch({ fecha_termino: event.target.value })} />
+            <input disabled={disabled} type="date" value={ticket.fecha_termino} onChange={(event) => onPatch({ fecha_termino: event.target.value })} />
           </label>
           <SearchableField
             label="Usuario solicitante"
@@ -418,6 +422,7 @@ export function TicketForm({
             options={masters.usuariosReporta}
             onChange={(value) => onPatch({ usuario_solicitante: value })}
             placeholder="Escribe el solicitante"
+            disabled={readOnlyField}
           />
         </div>
       </div>
@@ -428,10 +433,10 @@ export function TicketForm({
           <div className="notice inline-notice">Tu equipo no tiene sistemas asignados. Solicita a administracion configurar los sistemas visibles del equipo.</div>
         )}
         <div className="ticket-form-grid">
-          <SelectField label="Sistema" value={ticket.sistema} options={systemOptions} onChange={(value) => onPatch({ sistema: value })} />
-          <SelectField label="Aplicativo se encuentra operativo" value={ticket.aplicativo_se_encuentra} options={siNo} onChange={(value) => onPatch({ aplicativo_se_encuentra: value as "Si" | "No" })} />
-          <SelectField label="Es un servicio de integracion?" value={ticket.en_servicio} options={siNo} onChange={(value) => onPatch({ en_servicio: value as "Si" | "No" })} />
-          <MultiSelectField label="Formato" value={ticket.formato} options={masters.sociedades} onChange={(value) => onPatch({ formato: value })} />
+          <SelectField disabled={readOnlyField} label="Sistema" value={ticket.sistema} options={systemOptions} onChange={(value) => onPatch({ sistema: value })} />
+          <SelectField disabled={readOnlyField} label="Aplicativo se encuentra operativo" value={ticket.aplicativo_se_encuentra} options={siNo} onChange={(value) => onPatch({ aplicativo_se_encuentra: value as "Si" | "No" })} />
+          <SelectField disabled={readOnlyField} label="Es un servicio de integracion?" value={ticket.en_servicio} options={siNo} onChange={(value) => onPatch({ en_servicio: value as "Si" | "No" })} />
+          <MultiSelectField disabled={readOnlyField} label="Formato" value={ticket.formato} options={masters.sociedades} onChange={(value) => onPatch({ formato: value })} />
           <MultiDropdownField
             label="Responsables"
             selected={ticket.responsables}
@@ -448,6 +453,7 @@ export function TicketForm({
         <label>
           Alcance de la Atencion
           <textarea
+            disabled={readOnlyField}
             value={ticket.alcance_correo}
             onChange={(event) => onPatch({ alcance_correo: event.target.value, subject_correo: event.target.value })}
             placeholder="Describe el alcance de la atencion..."

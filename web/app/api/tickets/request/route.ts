@@ -330,7 +330,7 @@ export async function PUT(request: Request) {
 
     const { data: current, error: currentError } = await supabase
       .from("tickets")
-      .select("requested_by, codigo_tck")
+      .select("*, ticket_responsables(resource_name)")
       .eq("id", ticket.id)
       .single();
     if (currentError) throw currentError;
@@ -343,24 +343,43 @@ export async function PUT(request: Request) {
       visibleApplicationsForProfile(supabase, profile),
       loadMaxDaysByType(supabase)
     ]);
-    const responsables = cleanList(ticket.responsables ?? []);
-    validateTicket(ticket, responsables, assignableResources, visibleApplications, maxDaysByType);
+    const currentTicket = mapTicketRow(current, new Map());
+    const isLimitedEdit = profile.role !== "administracion";
+    const requestedFechaInicio = ticket.fecha_solicitud || currentTicket.fecha_solicitud;
+    const requestedFechaTermino = ticket.fecha_termino || currentTicket.fecha_termino;
+    const today = new Date().toISOString().slice(0, 10);
+    const limitedEstado = requestedFechaTermino < today
+      ? "Cerrado"
+      : currentTicket.estado === "Cerrado"
+        ? "Cerrado"
+        : "En Proceso";
+    const ticketToSave: Ticket = isLimitedEdit
+      ? {
+          ...currentTicket,
+          fecha_solicitud: requestedFechaInicio,
+          fecha_termino: requestedFechaTermino,
+          estado: limitedEstado,
+          responsables: cleanList(ticket.responsables ?? currentTicket.responsables)
+        }
+      : ticket;
+    const responsables = cleanList(ticketToSave.responsables ?? []);
+    validateTicket(ticketToSave, responsables, assignableResources, visibleApplications, maxDaysByType);
 
     const row = {
-      fecha_solicitud: ticket.fecha_solicitud,
-      sistema: ticket.sistema.trim(),
-      formato: ticket.formato.trim(),
-      usuario_solicitante: ticket.usuario_solicitante.trim(),
-      fecha_recepcion: ticket.fecha_recepcion,
-      subject_correo: (ticket.subject_correo || ticket.alcance_correo).trim(),
-      alcance_correo: ticket.alcance_correo.trim(),
-      tipo_atencion: ticket.tipo_atencion,
-      subcategoria_atencion: ticket.subcategoria_atencion.trim(),
-      estado: ticket.estado,
-      fecha_termino: ticket.fecha_termino,
+      fecha_solicitud: ticketToSave.fecha_solicitud,
+      sistema: ticketToSave.sistema.trim(),
+      formato: ticketToSave.formato.trim(),
+      usuario_solicitante: ticketToSave.usuario_solicitante.trim(),
+      fecha_recepcion: ticketToSave.fecha_recepcion,
+      subject_correo: (ticketToSave.subject_correo || ticketToSave.alcance_correo).trim(),
+      alcance_correo: ticketToSave.alcance_correo.trim(),
+      tipo_atencion: ticketToSave.tipo_atencion,
+      subcategoria_atencion: ticketToSave.subcategoria_atencion.trim(),
+      estado: ticketToSave.estado,
+      fecha_termino: ticketToSave.fecha_termino,
       tipo_tck: responsables.length > 1 ? "Grupal" : "Personal",
-      en_servicio: ticket.en_servicio,
-      aplicativo_se_encuentra: ticket.aplicativo_se_encuentra,
+      en_servicio: ticketToSave.en_servicio,
+      aplicativo_se_encuentra: ticketToSave.aplicativo_se_encuentra,
       approval_status: "Aprobado",
       rejection_reason: "",
       updated_at: new Date().toISOString()
@@ -377,7 +396,7 @@ export async function PUT(request: Request) {
       .insert(responsables.map((resourceName) => ({ ticket_id: ticket.id, resource_name: resourceName })));
     if (insertLinksError) throw insertLinksError;
 
-    return NextResponse.json({ tickets: await readTickets(supabase, profile), ticketCode: current?.codigo_tck });
+    return NextResponse.json({ tickets: await readTickets(supabase, profile), ticketCode: currentTicket.codigo_tck });
   } catch (error) {
     return NextResponse.json(
       { error: errorMessage(error, "No se pudo actualizar ticket.") },

@@ -438,6 +438,7 @@ export function TicketsView({
               onSubmit={() => persistTicket(editingTicket, "Ticket actualizado.")}
               onClose={() => setEditingTicket(null)}
               showReceptionDate
+              limitedEdit={!isAdmin}
               resourceOptions={responsibleOptions}
               applicationOptions={visibleApplications}
               disabled={isBusy}
