@@ -984,6 +984,21 @@ section.grid > button:not(.icon-button) {
   overflow: hidden;
 }
 
+.daily-dashboard-chart {
+  --resource-count: 1;
+  display: grid;
+  grid-template-rows: 24px 220px auto;
+  gap: 6px;
+  align-items: start;
+  min-height: 300px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+  padding: 36px 14px 14px;
+  overflow: hidden;
+}
+
 .dashboard-content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
@@ -1081,6 +1096,14 @@ section.grid > button:not(.icon-button) {
   font-weight: 900;
 }
 
+.bar-value.warning {
+  color: #b45309;
+}
+
+.bar-value.danger {
+  color: #b91c1c;
+}
+
 .dashboard-bar-track {
   position: relative;
   width: min(46px, 72%);
@@ -1101,6 +1124,14 @@ section.grid > button:not(.icon-button) {
 
 .dashboard-bar.ok {
   background: #86efac;
+}
+
+.dashboard-bar.warning {
+  background: #fbbf24;
+}
+
+.dashboard-bar.danger {
+  background: #fb7185;
 }
 
 .bar-label {
