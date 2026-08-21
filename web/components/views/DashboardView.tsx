@@ -15,6 +15,11 @@ type DailyRow = {
   hours: number;
 };
 
+function isWeekend(date: string) {
+  const day = new Date(`${date}T00:00:00`).getDay();
+  return day === 0 || day === 6;
+}
+
 function HoursChart({
   title,
   subtitle,
@@ -111,6 +116,7 @@ function DailyHoursChart({
   const totalHours = Number(rows.reduce((sum, row) => sum + row.hours, 0).toFixed(2));
   const belowEight = rows.filter((row) => row.hours > 0 && row.hours < 8).length;
   const aboveEight = rows.filter((row) => row.hours > 8).length;
+  const weekendDays = rows.filter((row) => isWeekend(row.date)).length;
   const chartStyle = { "--resource-count": Math.max(rows.length, 1) } as React.CSSProperties;
 
   return (
@@ -125,6 +131,7 @@ function DailyHoursChart({
           <span className="pill muted-pill">Horas: {totalHours}</span>
           <span className="pill muted-pill">Menos de 8h: {belowEight}</span>
           <span className="pill muted-pill">Mas de 8h: {aboveEight}</span>
+          <span className="pill muted-pill">Fin de semana: {weekendDays}</span>
         </div>
       </div>
       <div className="daily-dashboard-chart" style={chartStyle}>
@@ -132,7 +139,7 @@ function DailyHoursChart({
           <>
             <div className="dashboard-values">
               {rows.map((row) => (
-                <span className={row.hours > 8 ? "bar-value danger" : row.hours < 8 ? "bar-value warning" : "bar-value"} key={row.date}>
+                <span className={isWeekend(row.date) ? "bar-value weekend" : row.hours > 8 ? "bar-value danger" : row.hours < 8 ? "bar-value warning" : "bar-value"} key={row.date}>
                   {row.hours}
                 </span>
               ))}
@@ -140,7 +147,13 @@ function DailyHoursChart({
             <div className="dashboard-plot">
               {rows.map((row) => {
                 const height = `${(row.hours / maxHours) * 100}%`;
-                const className = row.hours > 8 ? "dashboard-bar danger" : row.hours < 8 ? "dashboard-bar warning" : "dashboard-bar ok";
+                const className = isWeekend(row.date)
+                  ? "dashboard-bar weekend"
+                  : row.hours > 8
+                    ? "dashboard-bar danger"
+                    : row.hours < 8
+                      ? "dashboard-bar warning"
+                      : "dashboard-bar ok";
                 return (
                   <div className="dashboard-bar-track" key={row.date}>
                     <div className={className} style={{ "--bar-height": height } as React.CSSProperties} />
@@ -150,6 +163,12 @@ function DailyHoursChart({
             </div>
             <div className="dashboard-labels">
               {rows.map((row) => <span className="bar-label" key={row.date}>{row.label}</span>)}
+            </div>
+            <div className="dashboard-legend">
+              <span><i className="legend-dot danger" /> Mas de 8 horas</span>
+              <span><i className="legend-dot warning" /> Menos de 8 horas</span>
+              <span><i className="legend-dot ok" /> 8 horas</span>
+              <span><i className="legend-dot weekend" /> Fin de semana</span>
             </div>
           </>
         ) : (

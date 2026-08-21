@@ -1163,6 +1163,10 @@ section.grid > button:not(.icon-button) {
   color: #b91c1c;
 }
 
+.bar-value.weekend {
+  color: #64748b;
+}
+
 .dashboard-bar-track {
   position: relative;
   width: min(46px, 72%);
@@ -1191,6 +1195,52 @@ section.grid > button:not(.icon-button) {
 
 .dashboard-bar.danger {
   background: #fb7185;
+}
+
+.dashboard-bar.weekend {
+  background: #cbd5e1;
+}
+
+.dashboard-legend {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #7dd3fc;
+}
+
+.legend-dot.ok {
+  background: #86efac;
+}
+
+.legend-dot.warning {
+  background: #fbbf24;
+}
+
+.legend-dot.danger {
+  background: #fb7185;
+}
+
+.legend-dot.weekend {
+  background: #cbd5e1;
 }
 
 .bar-label {
