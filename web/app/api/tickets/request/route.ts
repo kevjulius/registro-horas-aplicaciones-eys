@@ -126,6 +126,24 @@ async function visibleResourcesForProfile(supabase: ReturnType<typeof adminClien
   return Array.from(visible);
 }
 
+async function assignableResourcesForProfile(supabase: ReturnType<typeof adminClient>, profile: Profile) {
+  if (profile.role === "administracion") {
+    const { data, error } = await supabase.from("resources").select("name").eq("active", true).order("name");
+    if (error) throw error;
+    return (data ?? []).map((item) => item.name);
+  }
+
+  if (["trabajador_bi", "adminbi"].includes(profile.role)) {
+    const { data, error } = await supabase.from("bi_resources").select("name").eq("active", true).order("name");
+    if (error) throw error;
+    return (data ?? []).map((item) => item.name);
+  }
+
+  const { data, error } = await supabase.from("resources").select("name").eq("active", true).order("name");
+  if (error) throw error;
+  return (data ?? []).map((item) => item.name);
+}
+
 async function visibleApplicationsForProfile(supabase: ReturnType<typeof adminClient>, profile: Profile) {
   const { data: memberships, error: membershipsError } = await supabase
     .from("profile_teams")
@@ -203,43 +221,169 @@ function validateTicket(ticket: Ticket, responsables: string[], visibleResources
   }
 }
 
+async function profileNamesById(supabase: ReturnType<typeof adminClient>, profileIds: string[]) {
+  const ids = Array.from(new Set(profileIds.filter(Boolean)));
+  if (!ids.length) return new Map<string, string>();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, resource_name, email")
+    .in("id", ids);
+  if (error) throw error;
+
+  return new Map(
+    (data ?? []).map((item) => [
+      item.id,
+      item.display_name || item.resource_name || item.email || item.id
+    ])
+  );
+}
+
+async function visibleCreatorIds(supabase: ReturnType<typeof adminClient>, visibleResources: string[]) {
+  if (!visibleResources.length) return new Set<string>();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .in("resource_name", visibleResources)
+    .eq("active", true);
+  if (error) throw error;
+  return new Set((data ?? []).map((item) => item.id));
+}
+
+function mapTicketRow(row: Record<string, any>, creatorNames: Map<string, string>): Ticket {
+  const requestedBy = row.requested_by ?? null;
+  return {
+    id: row.id,
+    codigo_tck: row.codigo_tck,
+    fecha_solicitud: row.fecha_solicitud,
+    sistema: row.sistema,
+    formato: row.formato,
+    usuario_solicitante: row.usuario_solicitante,
+    fecha_recepcion: row.fecha_recepcion,
+    subject_correo: row.subject_correo,
+    alcance_correo: row.alcance_correo,
+    tipo_atencion: row.tipo_atencion,
+    subcategoria_atencion: row.subcategoria_atencion ?? "",
+    estado: row.estado,
+    fecha_termino: row.fecha_termino,
+    tipo_tck: row.tipo_tck,
+    en_servicio: row.en_servicio ?? "No",
+    aplicativo_se_encuentra: row.aplicativo_se_encuentra ?? "Si",
+    approval_status: row.approval_status ?? "Aprobado",
+    rejection_reason: row.rejection_reason ?? "",
+    requested_by: requestedBy,
+    requested_by_name: requestedBy ? creatorNames.get(requestedBy) ?? "" : "",
+    reviewed_by: row.reviewed_by ?? null,
+    reviewed_at: row.reviewed_at ?? null,
+    responsables: (row.ticket_responsables ?? []).map((item: { resource_name: string }) => item.resource_name),
+    active: row.active,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+
 async function readTickets(supabase: ReturnType<typeof adminClient>, profile: Profile): Promise<Ticket[]> {
   const { data, error } = await supabase
     .from("tickets")
     .select("*, ticket_responsables(resource_name)")
     .eq("active", true)
-    .order("codigo_tck");
+    .order("created_at", { ascending: false });
   if (error) throw error;
 
-  return (data ?? [])
-    .filter((row) => (row.ticket_responsables ?? []).some((item: { resource_name: string }) => item.resource_name === profile.resource_name))
-    .map((row) => ({
-      id: row.id,
-      codigo_tck: row.codigo_tck,
-      fecha_solicitud: row.fecha_solicitud,
-      sistema: row.sistema,
-      formato: row.formato,
-      usuario_solicitante: row.usuario_solicitante,
-      fecha_recepcion: row.fecha_recepcion,
-      subject_correo: row.subject_correo,
-      alcance_correo: row.alcance_correo,
-      tipo_atencion: row.tipo_atencion,
-      subcategoria_atencion: row.subcategoria_atencion ?? "",
-      estado: row.estado,
-      fecha_termino: row.fecha_termino,
-      tipo_tck: row.tipo_tck,
-      en_servicio: row.en_servicio ?? "No",
-      aplicativo_se_encuentra: row.aplicativo_se_encuentra ?? "Si",
-      approval_status: row.approval_status ?? "Aprobado",
-      rejection_reason: row.rejection_reason ?? "",
-      requested_by: row.requested_by ?? null,
-      reviewed_by: row.reviewed_by ?? null,
-      reviewed_at: row.reviewed_at ?? null,
-      responsables: (row.ticket_responsables ?? []).map((item: { resource_name: string }) => item.resource_name),
-      active: row.active,
-      created_at: row.created_at,
-      updated_at: row.updated_at
-    }));
+  const rows = data ?? [];
+  const creatorNames = await profileNamesById(supabase, rows.map((row) => row.requested_by).filter(Boolean));
+  if (profile.role === "administracion") return rows.map((row) => mapTicketRow(row, creatorNames));
+
+  const visibleResources = await visibleResourcesForProfile(supabase, profile);
+  const creatorIds = await visibleCreatorIds(supabase, visibleResources);
+  creatorIds.add(profile.id);
+
+  return rows
+    .filter((row) => {
+      const responsables = row.ticket_responsables ?? [];
+      const assignedToMe = responsables.some((item: { resource_name: string }) => item.resource_name === profile.resource_name);
+      const createdByVisibleCoworker = row.requested_by && creatorIds.has(row.requested_by);
+      return assignedToMe || createdByVisibleCoworker;
+    })
+    .map((row) => mapTicketRow(row, creatorNames));
+}
+
+export async function GET(request: Request) {
+  try {
+    const supabase = adminClient();
+    const profile = await requireProfile(request, supabase);
+    return NextResponse.json({ tickets: await readTickets(supabase, profile) });
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error, "No se pudo leer tickets.") },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const supabase = adminClient();
+    const profile = await requireProfile(request, supabase);
+    const { ticket } = (await request.json()) as { ticket: Ticket };
+    if (!ticket.id || ticket.id.startsWith("new-")) throw new Error("Ticket invalido.");
+
+    const { data: current, error: currentError } = await supabase
+      .from("tickets")
+      .select("requested_by, codigo_tck")
+      .eq("id", ticket.id)
+      .single();
+    if (currentError) throw currentError;
+    if (profile.role !== "administracion" && current?.requested_by !== profile.id) {
+      throw new Error("Solo puedes editar tickets creados por ti.");
+    }
+
+    const [assignableResources, visibleApplications, maxDaysByType] = await Promise.all([
+      assignableResourcesForProfile(supabase, profile),
+      visibleApplicationsForProfile(supabase, profile),
+      loadMaxDaysByType(supabase)
+    ]);
+    const responsables = cleanList(ticket.responsables ?? []);
+    validateTicket(ticket, responsables, assignableResources, visibleApplications, maxDaysByType);
+
+    const row = {
+      fecha_solicitud: ticket.fecha_solicitud,
+      sistema: ticket.sistema.trim(),
+      formato: ticket.formato.trim(),
+      usuario_solicitante: ticket.usuario_solicitante.trim(),
+      fecha_recepcion: ticket.fecha_recepcion,
+      subject_correo: (ticket.subject_correo || ticket.alcance_correo).trim(),
+      alcance_correo: ticket.alcance_correo.trim(),
+      tipo_atencion: ticket.tipo_atencion,
+      subcategoria_atencion: ticket.subcategoria_atencion.trim(),
+      estado: ticket.estado,
+      fecha_termino: ticket.fecha_termino,
+      tipo_tck: responsables.length > 1 ? "Grupal" : "Personal",
+      en_servicio: ticket.en_servicio,
+      aplicativo_se_encuentra: ticket.aplicativo_se_encuentra,
+      approval_status: "Aprobado",
+      rejection_reason: "",
+      updated_at: new Date().toISOString()
+    };
+
+    const { error: updateError } = await supabase.from("tickets").update(row).eq("id", ticket.id);
+    if (updateError) throw updateError;
+
+    const { error: deleteLinksError } = await supabase.from("ticket_responsables").delete().eq("ticket_id", ticket.id);
+    if (deleteLinksError) throw deleteLinksError;
+
+    const { error: insertLinksError } = await supabase
+      .from("ticket_responsables")
+      .insert(responsables.map((resourceName) => ({ ticket_id: ticket.id, resource_name: resourceName })));
+    if (insertLinksError) throw insertLinksError;
+
+    return NextResponse.json({ tickets: await readTickets(supabase, profile), ticketCode: current?.codigo_tck });
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error, "No se pudo actualizar ticket.") },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -248,7 +392,7 @@ export async function POST(request: Request) {
     const profile = await requireProfile(request, supabase);
     const { ticket } = (await request.json()) as { ticket: Ticket };
     const [visibleResources, visibleApplications] = await Promise.all([
-      visibleResourcesForProfile(supabase, profile),
+      assignableResourcesForProfile(supabase, profile),
       visibleApplicationsForProfile(supabase, profile)
     ]);
     const responsables = cleanList(ticket.responsables?.length ? ticket.responsables : [profile.resource_name ?? ""]);

@@ -161,22 +161,27 @@ function DailyHoursChart({
 }
 
 export function DashboardView({
+  profile,
   entries,
   biEntries,
   teams,
   profiles,
   expectedHoursByMonth
 }: {
+  profile: Profile;
   entries: TimeEntry[];
   biEntries: BiEntry[];
   teams: Team[];
   profiles: Profile[];
   expectedHoursByMonth: ExpectedHoursByMonth[];
 }) {
+  const isAdmin = profile.role === "administracion";
+  const isBiUser = ["trabajador_bi", "adminbi"].includes(profile.role);
+  const ownResource = profile.resource_name ?? "";
   const [dashboardTab, setDashboardTab] = useState<"mensual" | "diario">("mensual");
   const [month, setMonth] = useState(today().slice(0, 7));
   const [teamId, setTeamId] = useState("Todos");
-  const [dailyArea, setDailyArea] = useState<"Aplicaciones" | "BI">("Aplicaciones");
+  const [dailyArea, setDailyArea] = useState<"Aplicaciones" | "BI">(isBiUser ? "BI" : "Aplicaciones");
   const [dailyResource, setDailyResource] = useState("");
   const expectedHours = expectedHoursByMonth.find((item) => item.month === month)?.expected_hours ?? 176;
   const activeResources = useMemo(() => {
@@ -202,9 +207,10 @@ export function DashboardView({
   }, [entries, month, selectedTeam]);
 
   const appResources = useMemo(() => {
+    if (!isAdmin) return ownResource ? [ownResource] : [];
     const resources = selectedTeam ? selectedTeam.resources : Array.from(new Set(teams.flatMap((team) => team.resources)));
     return onlyActiveResources(resources).sort((a, b) => a.localeCompare(b));
-  }, [activeResources, selectedTeam, teams]);
+  }, [activeResources, isAdmin, ownResource, selectedTeam, teams]);
 
   const appRows = useMemo(() => {
     const totals = new Map<string, number>();
@@ -236,15 +242,19 @@ export function DashboardView({
   }, [biEntries, month]);
 
   const biResources = useMemo(() => {
+    if (!isAdmin) return isBiUser && ownResource ? [ownResource] : [];
     return onlyActiveResources(Array.from(new Set(biEntries.map((entry) => entry.asignado_a)))).sort((a, b) => a.localeCompare(b));
-  }, [activeResources, biEntries]);
+  }, [activeResources, biEntries, isAdmin, isBiUser, ownResource]);
 
   const biZeroResources = useMemo(() => {
     const withHours = new Set(biRows.map((row) => row.resource));
     return biResources.filter((resource) => !withHours.has(resource));
   }, [biResources, biRows]);
 
-  const dailyResourceOptions = dailyArea === "Aplicaciones" ? appResources : biResources;
+  const dailyAreaOptions = isAdmin ? ["Aplicaciones", "BI"] : [isBiUser ? "BI" : "Aplicaciones"];
+  const dailyResourceOptions = isAdmin
+    ? (dailyArea === "Aplicaciones" ? appResources : biResources)
+    : (ownResource ? [ownResource] : []);
 
   useEffect(() => {
     if (dailyResourceOptions.length === 0) {
@@ -313,7 +323,7 @@ export function DashboardView({
               </label>
               <label>
                 Equipo
-                <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
+                <select value={teamId} disabled={!isAdmin} onChange={(event) => setTeamId(event.target.value)}>
                   <option value="Todos">Todos</option>
                   {teams.map((team) => (
                     <option key={team.id} value={team.id}>{team.name}</option>
@@ -361,9 +371,8 @@ export function DashboardView({
               </label>
               <label>
                 Area
-                <select value={dailyArea} onChange={(event) => setDailyArea(event.target.value as "Aplicaciones" | "BI")}>
-                  <option>Aplicaciones</option>
-                  <option>BI</option>
+                <select value={dailyArea} disabled={!isAdmin} onChange={(event) => setDailyArea(event.target.value as "Aplicaciones" | "BI")}>
+                  {dailyAreaOptions.map((area) => <option key={area}>{area}</option>)}
                 </select>
               </label>
               <label>

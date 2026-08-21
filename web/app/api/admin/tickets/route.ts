@@ -54,13 +54,15 @@ async function requireAdmin(request: Request, supabase: ReturnType<typeof adminC
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role, active")
+    .select("id, role, active, display_name, resource_name")
     .eq("id", userData.user.id)
-    .single<Pick<Profile, "role" | "active">>();
+    .single<Pick<Profile, "id" | "role" | "active" | "display_name" | "resource_name">>();
 
   if (profileError || !profile?.active || profile.role !== "administracion") {
     throw new Error("Solo administracion puede modificar tickets.");
   }
+
+  return profile;
 }
 
 function cleanList(values: string[]) {
@@ -152,14 +154,31 @@ function validateTicket(ticket: Ticket, maxDaysByType: Record<string, number | n
   }
 }
 
+async function profileNamesById(supabase: ReturnType<typeof adminClient>, profileIds: string[]) {
+  const ids = Array.from(new Set(profileIds.filter(Boolean)));
+  if (!ids.length) return new Map<string, string>();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, resource_name, email")
+    .in("id", ids);
+  if (error) throw error;
+  return new Map(
+    (data ?? []).map((item) => [
+      item.id,
+      item.display_name || item.resource_name || item.email || item.id
+    ])
+  );
+}
+
 async function readTickets(supabase: ReturnType<typeof adminClient>): Promise<Ticket[]> {
   const { data, error } = await supabase
     .from("tickets")
     .select("*, ticket_responsables(resource_name)")
     .eq("active", true)
-    .order("codigo_tck");
+    .order("created_at", { ascending: false });
   if (error) throw error;
 
+  const creatorNames = await profileNamesById(supabase, (data ?? []).map((row) => row.requested_by).filter(Boolean));
   return (data ?? []).map((row) => ({
     id: row.id,
     codigo_tck: row.codigo_tck,
@@ -180,6 +199,7 @@ async function readTickets(supabase: ReturnType<typeof adminClient>): Promise<Ti
     approval_status: row.approval_status ?? "Aprobado",
     rejection_reason: row.rejection_reason ?? "",
     requested_by: row.requested_by ?? null,
+    requested_by_name: row.requested_by ? creatorNames.get(row.requested_by) ?? "" : "",
     reviewed_by: row.reviewed_by ?? null,
     reviewed_at: row.reviewed_at ?? null,
     responsables: (row.ticket_responsables ?? []).map((item: { resource_name: string }) => item.resource_name),
@@ -249,7 +269,7 @@ export async function PATCH(request: Request) {
 export async function POST(request: Request) {
   try {
     const supabase = adminClient();
-    await requireAdmin(request, supabase);
+    const profile = await requireAdmin(request, supabase);
 
     const { tickets } = (await request.json()) as { tickets: Ticket[] };
     const cleanTickets = tickets
@@ -309,7 +329,8 @@ export async function POST(request: Request) {
         rejection_reason: "",
         reviewed_at: new Date().toISOString(),
         active: true,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        ...(ticket.id.startsWith("new-") ? { requested_by: profile.id } : {})
       };
 
       const query = ticket.id.startsWith("new-")

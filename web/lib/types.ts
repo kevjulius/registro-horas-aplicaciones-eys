@@ -136,6 +136,7 @@ export type Ticket = {
   approval_status: TicketApprovalStatus;
   rejection_reason: string;
   requested_by?: string | null;
+  requested_by_name?: string;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
   responsables: string[];

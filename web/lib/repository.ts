@@ -327,6 +327,7 @@ function mapTicket(row: Record<string, unknown>): Ticket {
     approval_status: (row.approval_status as Ticket["approval_status"]) ?? "Aprobado",
     rejection_reason: String(row.rejection_reason ?? ""),
     requested_by: row.requested_by ? String(row.requested_by) : null,
+    requested_by_name: String(row.requested_by_name ?? ""),
     reviewed_by: row.reviewed_by ? String(row.reviewed_by) : null,
     reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
     responsables: links.map((item) => item.resource_name).sort((a, b) => a.localeCompare(b)),
@@ -337,27 +338,23 @@ function mapTicket(row: Record<string, unknown>): Ticket {
 }
 
 export async function loadTickets(profile: Profile): Promise<Ticket[]> {
-  if (hasSupabaseConfig && supabase) {
-    const rows: Array<Record<string, unknown>> = [];
-    const pageSize = 1000;
-    for (let from = 0; ; from += pageSize) {
-      const { data } = await supabase
-        .from("tickets")
-        .select("*, ticket_responsables(resource_name)")
-        .eq("active", true)
-        .order("codigo_tck")
-        .range(from, from + pageSize - 1);
-      rows.push(...((data ?? []) as Array<Record<string, unknown>>));
-      if (!data || data.length < pageSize) break;
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/tickets/request", {
+      headers: await authHeaders()
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo leer tickets.");
     }
-    const tickets = rows.map(mapTicket);
-    if (profile.role === "administracion") return tickets;
-    return tickets.filter((ticket) => ticket.responsables.includes(profile.resource_name ?? ""));
+
+    const payload = (await response.json()) as { tickets: Ticket[] };
+    return payload.tickets;
   }
 
   const tickets = readLocal(ticketsKey, demoTickets);
   if (profile.role === "administracion") return tickets;
-  return tickets.filter((ticket) => ticket.responsables.includes(profile.resource_name ?? ""));
+  return tickets.filter((ticket) => ticket.responsables.includes(profile.resource_name ?? "") || ticket.requested_by === profile.id);
 }
 
 export async function saveTickets(tickets: Ticket[]): Promise<Ticket[]> {
@@ -408,6 +405,28 @@ export async function requestTicket(ticket: Ticket): Promise<{ tickets: Ticket[]
   const next = [requested, ...tickets];
   writeLocal(ticketsKey, next);
   return { tickets: next, ticketCode: requested.codigo_tck };
+}
+
+export async function updateOwnTicket(ticket: Ticket): Promise<{ tickets: Ticket[] }> {
+  if (hasSupabaseConfig) {
+    const response = await fetch("/api/tickets/request", {
+      method: "PUT",
+      headers: await authHeaders(),
+      body: JSON.stringify({ ticket })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? "No se pudo actualizar ticket.");
+    }
+
+    return response.json() as Promise<{ tickets: Ticket[] }>;
+  }
+
+  const tickets = readLocal(ticketsKey, demoTickets);
+  const next = tickets.map((item) => (item.id === ticket.id ? ticket : item));
+  writeLocal(ticketsKey, next);
+  return { tickets: next };
 }
 
 export async function closeExpiredTickets(): Promise<{ updated: number; entriesUpdated: number }> {

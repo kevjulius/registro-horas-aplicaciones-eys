@@ -16,7 +16,7 @@ import {
   showHourValidation,
   useAutoDismissNotice
 } from "@/components/app-shared";
-import { closeExpiredTickets, requestTicket, saveEntry, saveTickets } from "@/lib/repository";
+import { closeExpiredTickets, requestTicket, saveEntry, saveTickets, updateOwnTicket } from "@/lib/repository";
 import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
 import type { MasterData, Profile, Ticket, TimeEntry } from "@/lib/types";
 
@@ -40,7 +40,7 @@ export function TicketsView({
   onChanged: () => void;
 }) {
   const isAdmin = profile.role === "administracion";
-  const responsibleOptions = isAdmin ? masters.recursos : visibleResources;
+  const responsibleOptions = masters.recursos;
 
   function newDraftTicket(): Ticket {
     const draft = emptyTicket();
@@ -68,7 +68,7 @@ export function TicketsView({
   const [ticketSearch, setTicketSearch] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("Todos");
   const [ticketTypeFilter, setTicketTypeFilter] = useState("Todos");
-  const [ticketResponsibleFilter, setTicketResponsibleFilter] = useState(profile.resource_name ?? "Todos");
+  const [ticketResponsibleFilter, setTicketResponsibleFilter] = useState("Todos");
   const [ticketDateFrom, setTicketDateFrom] = useState("");
   const [ticketDateTo, setTicketDateTo] = useState("");
 
@@ -95,7 +95,6 @@ export function TicketsView({
     const search = ticketSearch.trim().toLowerCase();
     return tickets
       .filter((ticket) => {
-        if (!isAdmin && !ticket.responsables.includes(profile.resource_name ?? "")) return false;
         if (ticketDateFrom && ticket.fecha_solicitud < ticketDateFrom) return false;
         if (ticketDateTo && ticket.fecha_solicitud > ticketDateTo) return false;
         if (ticketStatusFilter !== "Todos" && ticket.estado !== ticketStatusFilter) return false;
@@ -115,13 +114,13 @@ export function TicketsView({
         return true;
       })
       .sort((a, b) => ticketSortValue(b).localeCompare(ticketSortValue(a)));
-  }, [isAdmin, profile.resource_name, tickets, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
+  }, [tickets, ticketDateFrom, ticketDateTo, ticketResponsibleFilter, ticketSearch, ticketStatusFilter, ticketTypeFilter]);
 
   function clearTicketFilters() {
     setTicketSearch("");
     setTicketStatusFilter("Todos");
     setTicketTypeFilter("Todos");
-    setTicketResponsibleFilter(profile.resource_name ?? "Todos");
+    setTicketResponsibleFilter("Todos");
     setTicketDateFrom("");
     setTicketDateTo("");
   }
@@ -151,6 +150,16 @@ export function TicketsView({
       rejection_reason: "",
       tipo_tck: values.responsables.length > 1 ? "Grupal" : "Personal"
     };
+  }
+
+  function canEditTicket(ticket: Ticket) {
+    return isAdmin || ticket.requested_by === profile.id;
+  }
+
+  function createdByLabel(ticket: Ticket) {
+    if (ticket.requested_by_name) return ticket.requested_by_name;
+    if (ticket.requested_by === profile.id) return profile.display_name;
+    return "Sin dato";
   }
 
   function patchDraft(values: Partial<Ticket>) {
@@ -196,7 +205,7 @@ export function TicketsView({
       if (days > maxDays) return `El tipo de atencion "${ticket.tipo_atencion}" permite maximo ${maxDays} dias.`;
     }
     if (!isAdmin && ticket.responsables.some((resource) => !responsibleOptions.includes(resource))) {
-      return "Solo puedes asignar recursos de tus equipos.";
+      return "Solo puedes asignar recursos del area de Aplicaciones.";
     }
     if (!isAdmin && !visibleApplications.includes(ticket.sistema)) {
       return "Solo puedes crear tickets para sistemas asignados a tus equipos.";
@@ -231,11 +240,14 @@ export function TicketsView({
         });
         generatedCode = generatedCode || createdTicket?.codigo_tck || "";
       }
-      else {
+      else if (normalizedTicket.id.startsWith("new-")) {
         const result = await requestTicket({ ...normalizedTicket, approval_status: "Aprobado", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
         generatedCode = result.ticketCode ?? generatedCode;
+      } else {
+        await updateOwnTicket({ ...normalizedTicket, approval_status: "Aprobado", rejection_reason: "", tipo_tck: ticket.responsables.length > 1 ? "Grupal" : "Personal" });
       }
-      notifyTicket(generatedCode ? `${successMessage} Codigo generado: ${generatedCode}.` : successMessage, "success", generatedCode);
+      const isNewTicket = normalizedTicket.id.startsWith("new-");
+      notifyTicket(isNewTicket && generatedCode ? `${successMessage} Codigo generado: ${generatedCode}.` : successMessage, "success", generatedCode);
       setDraftTicket(newDraftTicket());
       setEditingTicket(null);
       setTicketView("listado");
@@ -416,7 +428,7 @@ export function TicketsView({
             <button className="secondary" type="button" disabled={isBusy} onClick={clearTicketFilters}>Limpiar filtros</button>
           </div>
 
-          {editingTicket && isAdmin && (
+          {editingTicket && canEditTicket(editingTicket) && (
             <TicketForm
               ticket={editingTicket}
               masters={masters}
@@ -483,6 +495,7 @@ export function TicketsView({
                   <th>Subcategoria</th>
                   <th>Estado</th>
                   <th>Responsables</th>
+                  <th>Creado por</th>
                   <th>Detalle</th>
                   <th></th>
                 </tr>
@@ -500,17 +513,20 @@ export function TicketsView({
                     <td>{ticket.subcategoria_atencion}</td>
                     <td><span className={`status ${ticket.estado === "Cerrado" ? "closed" : "progress"}`}>{ticket.estado}</span></td>
                     <td className="description-cell">{ticket.responsables.join("; ")}</td>
+                    <td>{createdByLabel(ticket)}</td>
                     <td className="description-cell">{ticket.alcance_correo}</td>
                     <td>
                       <div className="row-actions">
                         <button className="secondary icon-button" type="button" disabled={isBusy} title="Registrar horas" onClick={() => openQuickEntry(ticket)}>
                           <Clock size={16} />
                         </button>
+                        {canEditTicket(ticket) && (
+                          <button className="secondary icon-button" type="button" disabled={isBusy} title="Editar ticket" onClick={() => { setEditingTicket(ticket); setTicketMessage(""); }}>
+                            <Pencil size={16} />
+                          </button>
+                        )}
                         {isAdmin && (
                           <>
-                            <button className="secondary icon-button" type="button" disabled={isBusy} title="Editar ticket" onClick={() => { setEditingTicket(ticket); setTicketMessage(""); }}>
-                              <Pencil size={16} />
-                            </button>
                             <button className="secondary icon-button" type="button" disabled={isBusy} title="Eliminar ticket" onClick={() => deleteTicket(ticket)}>
                               <Trash2 size={16} />
                             </button>

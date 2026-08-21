@@ -57,7 +57,8 @@ function defaultPageFor(profile: Profile) {
 function canViewPage(profile: Profile, key: PageKey) {
   if (["tickets", "listado", "carga"].includes(key)) return isApplicationRole(profile);
   if (key === "bi" || key === "cargabi") return isBiRole(profile);
-  if (key === "dashboard" || key === "admin") return profile.role === "administracion";
+  if (key === "dashboard") return true;
+  if (key === "admin") return profile.role === "administracion";
   if (key === "adminbi") return ["adminbi", "administracion"].includes(profile.role);
   return false;
 }
@@ -114,7 +115,7 @@ export default function Home() {
       appAllowed ? loadTickets(currentProfile) : Promise.resolve([]),
       appAllowed && masterData ? loadVisibleResources(currentProfile, masterData) : Promise.resolve([]),
       appAllowed && masterData ? loadVisibleApplications(currentProfile, masterData) : Promise.resolve([]),
-      currentProfile.role === "administracion" ? loadExpectedHoursByMonth() : Promise.resolve([])
+      loadExpectedHoursByMonth()
     ]);
     setMasters(masterData);
     setBiMasters(biMasterData);
@@ -286,11 +287,14 @@ export default function Home() {
         {page === "bi" && biMasters && <BiView profile={profile} masters={biMasters} entries={biEntries} onChanged={() => refresh(profile)} />}
         {page === "cargabi" && biMasters && <BiBulkUploadView profile={profile} masters={biMasters} onSaved={() => refresh(profile)} />}
         {page === "dashboard" &&
-          (profile.role === "administracion" ? (
-            <DashboardView entries={entries} biEntries={biEntries} teams={teams} profiles={profiles} expectedHoursByMonth={expectedHoursByMonth} />
-          ) : (
-            <div className="notice">Solo administracion puede ver el dashboard.</div>
-          ))}
+          <DashboardView
+            profile={profile}
+            entries={entries}
+            biEntries={biEntries}
+            teams={teams}
+            profiles={profile.role === "administracion" ? profiles : [profile]}
+            expectedHoursByMonth={expectedHoursByMonth}
+          />}
         {page === "admin" &&
           (profile.role === "administracion" && masters ? (
             <AdminView currentUser={profile} masters={masters} profiles={profiles} teams={teams} onChanged={() => refresh(profile)} />
