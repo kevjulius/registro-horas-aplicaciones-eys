@@ -252,9 +252,9 @@ export function EntriesView({ profile, masters, tickets, entries, onChanged }: {
               Horas invertidas
               <input
                 type="number"
-                min="0.5"
+                min="0.01"
                 max="8"
-                step="0.5"
+                step="any"
                 value={editingEntry.horas_invertidas}
                 onInvalid={showHourValidation}
                 onInput={clearHourValidation}
