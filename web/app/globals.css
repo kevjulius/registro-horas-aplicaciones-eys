@@ -1243,6 +1243,76 @@ section.grid > button:not(.icon-button) {
   background: #cbd5e1;
 }
 
+.guide-card,
+.guide-rules-card {
+  gap: 18px;
+}
+
+.guide-intro {
+  display: grid;
+  gap: 6px;
+}
+
+.guide-intro h3,
+.guide-rules-card h3 {
+  margin: 0;
+}
+
+.guide-table {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.guide-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+
+.guide-row:last-child {
+  border-bottom: 0;
+}
+
+.guide-row > * {
+  margin: 0;
+  padding: 16px;
+}
+
+.guide-row strong {
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 15px;
+}
+
+.guide-row p {
+  color: #334155;
+  line-height: 1.55;
+}
+
+.guide-header {
+  background: var(--primary-soft);
+  color: #075985;
+  font-weight: 900;
+}
+
+.guide-header span:first-child {
+  border-right: 1px solid var(--border);
+}
+
+.guide-rules-card ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
+  color: #334155;
+  line-height: 1.5;
+}
+
 .bar-label {
   max-width: 96px;
   min-height: 40px;
@@ -1280,6 +1350,15 @@ section.grid > button:not(.icon-button) {
   .team-assignment-grid,
   .ticket-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .guide-row {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-row strong,
+  .guide-header span:first-child {
+    border-right: 0;
   }
 
   .section-head {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { AdminBiView } from "@/components/views/AdminBiView";
 import { AdminView } from "@/components/views/AdminView";
+import { AttentionGuideView } from "@/components/views/AttentionGuideView";
 import { BiView } from "@/components/views/BiView";
 import { BiBulkUploadView } from "@/components/views/BiBulkUploadView";
 import { BulkUploadView } from "@/components/views/BulkUploadView";
@@ -31,6 +32,7 @@ import type { BiEntry, BiMasterData } from "@/lib/types";
 
 const menuItems = [
   { key: "tickets", label: "Tickets" },
+  { key: "guia", label: "Guia de Atenciones" },
   { key: "listado", label: "Listado de Atenciones" },
   { key: "carga", label: "Carga Masiva - Atencion" },
   { key: "bi", label: "BI" },
@@ -55,7 +57,7 @@ function defaultPageFor(profile: Profile) {
 }
 
 function canViewPage(profile: Profile, key: PageKey) {
-  if (["tickets", "listado", "carga"].includes(key)) return isApplicationRole(profile);
+  if (["tickets", "guia", "listado", "carga"].includes(key)) return isApplicationRole(profile);
   if (key === "bi" || key === "cargabi") return isBiRole(profile);
   if (key === "dashboard") return true;
   if (key === "admin") return profile.role === "administracion";
@@ -282,6 +284,7 @@ export default function Home() {
           <p className="muted">Registro de horas y atenciones</p>
         </div>
         {page === "carga" && masters && <BulkUploadView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
+        {page === "guia" && <AttentionGuideView />}
         {page === "listado" && masters && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
         {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} visibleApplications={visibleApplications} onChanged={() => refresh(profile)} />}
         {page === "bi" && biMasters && <BiView profile={profile} masters={biMasters} entries={biEntries} onChanged={() => refresh(profile)} />}
