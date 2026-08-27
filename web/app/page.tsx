@@ -196,7 +196,7 @@ export default function Home() {
     return (
       <main className="login-shell">
         <form className="card login-card" onSubmit={handlePasswordUpdate}>
-          <h1>EyS Bitacora</h1>
+          <h1>EyS Bitácora</h1>
           <p className="muted">Registro de horas y atenciones</p>
           <p className="muted">Define una nueva clave para continuar.</p>
           <label>
@@ -218,7 +218,7 @@ export default function Home() {
     return (
       <main className="login-shell">
         <form className="card login-card" onSubmit={handleLogin}>
-          <h1>EyS Bitacora</h1>
+          <h1>EyS Bitácora</h1>
           <p className="muted">Registro de horas y atenciones</p>
           <p className="muted">Ingresa con tu correo para continuar.</p>
           <label>
@@ -242,7 +242,7 @@ export default function Home() {
         <div className="app-brand">
           <span className="app-mark">E</span>
           <div>
-            <strong>EyS Bitacora</strong>
+            <strong>EyS Bitácora</strong>
             <small>Registro de horas y atenciones</small>
           </div>
         </div>
@@ -280,7 +280,7 @@ export default function Home() {
       </aside>
       <section className="main">
         <div className="page-title">
-          <h1>EyS Bitacora</h1>
+          <h1>EyS Bitácora</h1>
           <p className="muted">Registro de horas y atenciones</p>
         </div>
         {page === "carga" && masters && <BulkUploadView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
