@@ -31,8 +31,7 @@ const rules = [
   "Una capacitacion relacionada con un proyecto o requerimiento nuevo debe incluirse dentro de esa misma atencion; no debe crearse como un ticket adicional de soporte.",
   "Si requiere una estimacion independiente de tiempo y costos, se registra como Anteproyecto.",
   "Si existe una falla inesperada en algo que anteriormente funcionaba, se registra como Incidencia.",
-  "El usuario solicitante del ticket debe ser siempre el usuario SPSA que pidio la atencion.",
-  "Si un lider de Estrategia recibe el requerimiento y necesita involucrar a una o mas personas del equipo, el lider debe crear el ticket indicando como solicitante al usuario SPSA que realizo el pedido y luego compartir el ticket con los responsables que participaran en la atencion."
+  "El usuario solicitante del ticket debe ser siempre el usuario SPSA que pidio la atencion. Si un lider de Estrategia recibe el requerimiento y necesita involucrar a una o mas personas del equipo, el lider debe crear el ticket indicando como solicitante al usuario SPSA que realizo el pedido y luego compartir el ticket con los responsables que participaran en la atencion."
 ];
 
 export function AttentionGuideView() {
@@ -54,7 +53,7 @@ export function AttentionGuideView() {
         <div className="guide-table">
           <div className="guide-row guide-header">
             <span>Tipo</span>
-            <span>Cuando corresponde?</span>
+            <span>¿Cuándo corresponde?</span>
           </div>
           {guideRows.map((row) => (
             <div className="guide-row" key={row.type}>
