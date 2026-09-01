@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LogOut } from "lucide-react";
+import { LogOut, RefreshCw } from "lucide-react";
 import { AdminBiView } from "@/components/views/AdminBiView";
 import { AdminView } from "@/components/views/AdminView";
 import { AttentionGuideView } from "@/components/views/AttentionGuideView";
@@ -31,8 +31,8 @@ import type { ExpectedHoursByMonth, MasterData, Profile, Team, Ticket, TimeEntry
 import type { BiEntry, BiMasterData } from "@/lib/types";
 
 const menuItems = [
-  { key: "tickets", label: "Tickets" },
   { key: "guia", label: "Guia de Atenciones" },
+  { key: "tickets", label: "Tickets" },
   { key: "listado", label: "Listado de Atenciones" },
   { key: "carga", label: "Carga Masiva - Atencion" },
   { key: "bi", label: "BI" },
@@ -53,7 +53,7 @@ function isBiRole(profile: Profile | null) {
 }
 
 function defaultPageFor(profile: Profile) {
-  return isApplicationRole(profile) ? "listado" : "bi";
+  return isApplicationRole(profile) ? "guia" : "bi";
 }
 
 function canViewPage(profile: Profile, key: PageKey) {
@@ -72,7 +72,7 @@ export default function Home() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isRecovery, setIsRecovery] = useState(false);
-  const [page, setPage] = useState<PageKey>("listado");
+  const [page, setPage] = useState<PageKey>("guia");
   const [masters, setMasters] = useState<MasterData | null>(null);
   const [biMasters, setBiMasters] = useState<BiMasterData | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -85,6 +85,7 @@ export default function Home() {
   const [visibleApplications, setVisibleApplications] = useState<string[]>([]);
   const [loginMessage, setLoginMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -181,7 +182,16 @@ export default function Home() {
     setVisibleResources([]);
     setVisibleApplications([]);
     setPassword("");
-    setPage("listado");
+    setPage("guia");
+  }
+
+  async function handleManualRefresh() {
+    try {
+      setIsRefreshing(true);
+      await refresh(profile);
+    } finally {
+      setIsRefreshing(false);
+    }
   }
 
   if (loading) {
@@ -280,8 +290,13 @@ export default function Home() {
       </aside>
       <section className="main">
         <div className="page-title">
-          <h1>EyS Bitácora</h1>
-          <p className="muted">Registro de horas y atenciones</p>
+          <div>
+            <h1>EyS Bitácora</h1>
+            <p className="muted">Registro de horas y atenciones</p>
+          </div>
+          <button className="secondary" type="button" disabled={isRefreshing} onClick={handleManualRefresh}>
+            <RefreshCw size={16} /> {isRefreshing ? "Refrescando..." : "Refrescar datos"}
+          </button>
         </div>
         {page === "carga" && masters && <BulkUploadView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
         {page === "guia" && <AttentionGuideView />}

@@ -337,6 +337,17 @@ th {
   flex-wrap: wrap;
 }
 
+.page-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.page-title h1 {
+  margin-bottom: 6px;
+}
+
 .section-head {
   display: flex;
   justify-content: space-between;
@@ -1362,6 +1373,10 @@ section.grid > button:not(.icon-button) {
   }
 
   .section-head {
+    display: grid;
+  }
+
+  .page-title {
     display: grid;
   }
 }
