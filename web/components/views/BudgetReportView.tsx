@@ -41,6 +41,8 @@ const monthOptions = [
   { value: "12", label: "Diciembre" }
 ];
 
+const excludedAttentionTypes = new Set(["proyecto", "actividades internas"]);
+
 function currentMonth() {
   return new Date().toISOString().slice(5, 7);
 }
@@ -81,6 +83,10 @@ function csvValue(value: string | number | null) {
 
 function round(value: number) {
   return Number(value.toFixed(2));
+}
+
+function attentionBaseType(value: string) {
+  return value.split(" - ")[0]?.trim().toLowerCase() ?? "";
 }
 
 function buildBudgetIndex(budgets: ApplicationBudget[], year: number) {
@@ -156,12 +162,15 @@ export function BudgetReportView({
   const [team, setTeam] = useState<TeamName | "Todos">(isBiOnly ? "BI" : "Todos");
   const [system, setSystem] = useState("Todos");
   const [society, setSociety] = useState("Todos");
+  const [status, setStatus] = useState("Todos");
 
   const reportRows = useMemo(() => {
     const { byKey, societiesBySystem } = buildBudgetIndex(budgets, year);
     const actualRows: Consumption[] = [
       ...entries
         .filter((entry) => monthMatches(entry.fecha_reporte, year, month))
+        .filter((entry) => !excludedAttentionTypes.has(attentionBaseType(entry.tipo_atencion)))
+        .filter((entry) => status === "Todos" || entry.estado_tck === status)
         .map((entry) => ({
           equipo: "Aplicaciones" as const,
           sistema: entry.aplicativo,
@@ -170,6 +179,8 @@ export function BudgetReportView({
         })),
       ...biEntries
         .filter((entry) => monthMatches(entry.fecha_inicio, year, month))
+        .filter((entry) => !excludedAttentionTypes.has(attentionBaseType(entry.tipo_atencion)))
+        .filter((entry) => status === "Todos" || entry.estado === status)
         .map((entry) => ({
           equipo: "BI" as const,
           sistema: entry.servicio,
@@ -209,7 +220,7 @@ export function BudgetReportView({
       }))
       .filter((row) => !isBiOnly || row.equipo === "BI")
       .sort((a, b) => a.equipo.localeCompare(b.equipo) || a.sistema.localeCompare(b.sistema) || a.sociedad.localeCompare(b.sociedad));
-  }, [biEntries, budgets, entries, isBiOnly, month, year]);
+  }, [biEntries, budgets, entries, isBiOnly, month, status, year]);
 
   const systemOptions = useMemo(() => {
     return Array.from(new Set(reportRows.filter((row) => team === "Todos" || row.equipo === team).map((row) => row.sistema))).sort((a, b) => a.localeCompare(b));
@@ -244,6 +255,7 @@ export function BudgetReportView({
     setTeam(isBiOnly ? "BI" : "Todos");
     setSystem("Todos");
     setSociety("Todos");
+    setStatus("Todos");
   }
 
   function exportCsv() {
@@ -290,7 +302,7 @@ export function BudgetReportView({
       </div>
 
       <div className="card grid">
-        <div className="grid grid-5 filters">
+        <div className="grid grid-6 filters">
           <label>
             Año
             <select value={year} onChange={(event) => setYear(Number(event.target.value))}>
@@ -323,6 +335,16 @@ export function BudgetReportView({
             <select value={society} onChange={(event) => setSociety(event.target.value)}>
               <option value="Todos">Todos</option>
               {societyOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </label>
+          <label>
+            Estado
+            <select value={status} onChange={(event) => setStatus(event.target.value)}>
+              <option value="Todos">Todos</option>
+              <option value="En Proceso">En Proceso</option>
+              <option value="Cerrado">Cerrado</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Cancelado">Cancelado</option>
             </select>
           </label>
         </div>
