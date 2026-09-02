@@ -392,6 +392,11 @@ th {
   color: #075985;
 }
 
+.status.warning-status {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .self-tag {
   display: inline-flex;
   margin-left: 8px;
@@ -544,6 +549,33 @@ th {
   color: var(--muted);
 }
 
+.budget-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metric-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.metric-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.metric-card strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.warning-metric strong {
+  color: #b45309;
+}
+
 .table-card {
   max-height: 620px;
   overflow: auto;
@@ -642,6 +674,21 @@ th {
 
 .entries-table-card .cell-actions {
   width: 76px;
+}
+
+.budget-table-card table {
+  min-width: 1380px;
+}
+
+.budget-table-card th:nth-child(2),
+.budget-table-card td:nth-child(2) {
+  min-width: 260px;
+}
+
+.budget-table-card th:nth-child(10),
+.budget-table-card td:nth-child(10) {
+  min-width: 300px;
+  white-space: normal;
 }
 
 .description-cell {
@@ -1354,6 +1401,7 @@ section.grid > button:not(.icon-button) {
   .grid-4,
   .grid-5,
   .grid-6,
+  .budget-summary,
   .admin-layout,
   .admin-layout:has(.app-master-values),
   .app-create-panel,

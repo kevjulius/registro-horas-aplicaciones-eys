@@ -129,6 +129,20 @@ create table public.time_entries (
   modificado timestamptz not null default now()
 );
 
+create table public.application_budgets (
+  id bigint generated always as identity primary key,
+  anio integer not null check (anio >= 2000),
+  equipo text not null check (equipo in ('Aplicaciones', 'BI')),
+  sistema text not null,
+  sociedad text not null,
+  horas_presupuestadas_mes numeric(12,3) not null check (horas_presupuestadas_mes >= 0),
+  material_cf text not null default '',
+  glosa_pl text not null default '',
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.profiles enable row level security;
 alter table public.resources enable row level security;
 alter table public.reporter_users enable row level security;
@@ -143,6 +157,7 @@ alter table public.team_applications enable row level security;
 alter table public.tickets enable row level security;
 alter table public.ticket_responsables enable row level security;
 alter table public.time_entries enable row level security;
+alter table public.application_budgets enable row level security;
 
 create or replace function public.current_profile_role()
 returns text
@@ -279,4 +294,10 @@ create policy "entries delete own or admin" on public.time_entries
 for delete using (
   recurso = public.current_resource_name()
   or public.is_admin()
+);
+
+create policy "application budgets read admin" on public.application_budgets
+for select using (
+  public.current_profile_role() = 'administracion'
+  or (public.current_profile_role() = 'adminbi' and equipo = 'BI')
 );

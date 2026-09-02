@@ -8,11 +8,13 @@ import { AttentionGuideView } from "@/components/views/AttentionGuideView";
 import { BiView } from "@/components/views/BiView";
 import { BiBulkUploadView } from "@/components/views/BiBulkUploadView";
 import { BulkUploadView } from "@/components/views/BulkUploadView";
+import { BudgetReportView } from "@/components/views/BudgetReportView";
 import { DashboardView } from "@/components/views/DashboardView";
 import { EntriesView } from "@/components/views/EntriesView";
 import { TicketsView } from "@/components/views/TicketsView";
 import {
   getCurrentProfile,
+  loadApplicationBudgets,
   loadBiEntries,
   loadBiMasters,
   loadEntries,
@@ -27,7 +29,7 @@ import {
   signOut,
   updatePassword
 } from "@/lib/repository";
-import type { ExpectedHoursByMonth, MasterData, Profile, Team, Ticket, TimeEntry } from "@/lib/types";
+import type { ApplicationBudget, ExpectedHoursByMonth, MasterData, Profile, Team, Ticket, TimeEntry } from "@/lib/types";
 import type { BiEntry, BiMasterData } from "@/lib/types";
 
 const menuItems = [
@@ -38,6 +40,7 @@ const menuItems = [
   { key: "bi", label: "BI" },
   { key: "cargabi", label: "Carga Masiva BI" },
   { key: "dashboard", label: "Dashboard" },
+  { key: "presupuesto", label: "Presupuesto vs Consumo" },
   { key: "adminbi", label: "Administracion BI" },
   { key: "admin", label: "Administracion" }
 ] as const;
@@ -60,6 +63,7 @@ function canViewPage(profile: Profile, key: PageKey) {
   if (["tickets", "guia", "listado", "carga"].includes(key)) return isApplicationRole(profile);
   if (key === "bi" || key === "cargabi") return isBiRole(profile);
   if (key === "dashboard") return true;
+  if (key === "presupuesto") return ["adminbi", "administracion"].includes(profile.role);
   if (key === "admin") return profile.role === "administracion";
   if (key === "adminbi") return ["adminbi", "administracion"].includes(profile.role);
   return false;
@@ -80,6 +84,7 @@ export default function Home() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [expectedHoursByMonth, setExpectedHoursByMonth] = useState<ExpectedHoursByMonth[]>([]);
+  const [applicationBudgets, setApplicationBudgets] = useState<ApplicationBudget[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [visibleResources, setVisibleResources] = useState<string[]>([]);
   const [visibleApplications, setVisibleApplications] = useState<string[]>([]);
@@ -110,7 +115,7 @@ export default function Home() {
     const biAllowed = isBiRole(currentProfile);
     const masterData = appAllowed ? await loadMasters() : null;
     const biMasterData = biAllowed ? await loadBiMasters() : null;
-    const [entryData, biEntryData, profileData, teamData, ticketData, visibleResourceData, visibleApplicationData, expectedHoursData] = await Promise.all([
+    const [entryData, biEntryData, profileData, teamData, ticketData, visibleResourceData, visibleApplicationData, expectedHoursData, budgetData] = await Promise.all([
       appAllowed && masterData ? loadEntries(currentProfile) : Promise.resolve([]),
       biAllowed ? loadBiEntries(currentProfile) : Promise.resolve([]),
       currentProfile.role === "administracion" ? loadProfiles() : Promise.resolve([]),
@@ -118,7 +123,8 @@ export default function Home() {
       appAllowed ? loadTickets(currentProfile) : Promise.resolve([]),
       appAllowed && masterData ? loadVisibleResources(currentProfile, masterData) : Promise.resolve([]),
       appAllowed && masterData ? loadVisibleApplications(currentProfile, masterData) : Promise.resolve([]),
-      loadExpectedHoursByMonth()
+      loadExpectedHoursByMonth(),
+      ["adminbi", "administracion"].includes(currentProfile.role) ? loadApplicationBudgets() : Promise.resolve([])
     ]);
     setMasters(masterData);
     setBiMasters(biMasterData);
@@ -130,6 +136,7 @@ export default function Home() {
     setVisibleResources(visibleResourceData);
     setVisibleApplications(visibleApplicationData);
     setExpectedHoursByMonth(expectedHoursData);
+    setApplicationBudgets(budgetData);
   }
 
   async function handleLogin(event: React.FormEvent) {
@@ -178,6 +185,7 @@ export default function Home() {
     setProfiles([]);
     setTeams([]);
     setExpectedHoursByMonth([]);
+    setApplicationBudgets([]);
     setTickets([]);
     setVisibleResources([]);
     setVisibleApplications([]);
@@ -312,6 +320,13 @@ export default function Home() {
             teams={teams}
             profiles={profile.role === "administracion" ? profiles : [profile]}
             expectedHoursByMonth={expectedHoursByMonth}
+          />}
+        {page === "presupuesto" &&
+          <BudgetReportView
+            profile={profile}
+            budgets={applicationBudgets}
+            entries={entries}
+            biEntries={biEntries}
           />}
         {page === "admin" &&
           (profile.role === "administracion" && masters ? (

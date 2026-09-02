@@ -2,7 +2,7 @@
 
 import { demoBiEntries, demoBiMasters, demoEntries, demoMasterData, demoProfiles, demoTeams, demoTickets } from "./demo-data";
 import { hasSupabaseConfig, supabase } from "./supabase";
-import type { BiEntry, BiMasterData, ExpectedHoursByMonth, MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
+import type { ApplicationBudget, BiEntry, BiMasterData, ExpectedHoursByMonth, MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
 
 const entriesKey = "eys.time_entries";
 const profilesKey = "eys.profiles";
@@ -12,6 +12,7 @@ const ticketsKey = "eys.tickets";
 const biMastersKey = "eys.bi.masters";
 const biEntriesKey = "eys.bi.entries";
 const expectedHoursKey = "eys.expected.hours";
+const budgetsKey = "eys.application.budgets";
 
 export const defaultExpectedHoursByMonth: ExpectedHoursByMonth[] = [
   { month: "2026-01", expected_hours: 168 },
@@ -179,6 +180,31 @@ export async function loadExpectedHoursByMonth(): Promise<ExpectedHoursByMonth[]
   }
 
   return readLocal(expectedHoursKey, defaultExpectedHoursByMonth);
+}
+
+export async function loadApplicationBudgets(): Promise<ApplicationBudget[]> {
+  if (hasSupabaseConfig && supabase) {
+    const rows: ApplicationBudget[] = [];
+    const pageSize = 1000;
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("application_budgets")
+        .select("*")
+        .eq("active", true)
+        .order("equipo")
+        .order("sistema")
+        .range(from, from + pageSize - 1);
+
+      if (error) return [];
+      rows.push(...((data ?? []) as ApplicationBudget[]));
+      if (!data || data.length < pageSize) break;
+    }
+
+    return rows;
+  }
+
+  return readLocal(budgetsKey, [] as ApplicationBudget[]);
 }
 
 export async function saveBiMasters(data: BiMasterData): Promise<BiMasterData> {

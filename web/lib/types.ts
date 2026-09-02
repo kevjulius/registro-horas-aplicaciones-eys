@@ -75,6 +75,18 @@ export type ExpectedHoursByMonth = {
   expected_hours: number;
 };
 
+export type ApplicationBudget = {
+  id?: number;
+  anio: number;
+  equipo: "Aplicaciones" | "BI";
+  sistema: string;
+  sociedad: string;
+  horas_presupuestadas_mes: number;
+  material_cf: string;
+  glosa_pl: string;
+  active: boolean;
+};
+
 export type Team = {
   id: string;
   name: string;
