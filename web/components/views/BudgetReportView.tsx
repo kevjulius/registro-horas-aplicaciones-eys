@@ -162,7 +162,7 @@ export function BudgetReportView({
   const [team, setTeam] = useState<TeamName | "Todos">(isBiOnly ? "BI" : "Todos");
   const [system, setSystem] = useState("Todos");
   const [society, setSociety] = useState("Todos");
-  const [status, setStatus] = useState("Todos");
+  const [budgetStatus, setBudgetStatus] = useState("Todos");
 
   const reportRows = useMemo(() => {
     const { byKey, societiesBySystem } = buildBudgetIndex(budgets, year);
@@ -170,7 +170,6 @@ export function BudgetReportView({
       ...entries
         .filter((entry) => monthMatches(entry.fecha_reporte, year, month))
         .filter((entry) => !excludedAttentionTypes.has(attentionBaseType(entry.tipo_atencion)))
-        .filter((entry) => status === "Todos" || entry.estado_tck === status)
         .map((entry) => ({
           equipo: "Aplicaciones" as const,
           sistema: entry.aplicativo,
@@ -180,7 +179,6 @@ export function BudgetReportView({
       ...biEntries
         .filter((entry) => monthMatches(entry.fecha_inicio, year, month))
         .filter((entry) => !excludedAttentionTypes.has(attentionBaseType(entry.tipo_atencion)))
-        .filter((entry) => status === "Todos" || entry.estado === status)
         .map((entry) => ({
           equipo: "BI" as const,
           sistema: entry.servicio,
@@ -220,7 +218,7 @@ export function BudgetReportView({
       }))
       .filter((row) => !isBiOnly || row.equipo === "BI")
       .sort((a, b) => a.equipo.localeCompare(b.equipo) || a.sistema.localeCompare(b.sistema) || a.sociedad.localeCompare(b.sociedad));
-  }, [biEntries, budgets, entries, isBiOnly, month, status, year]);
+  }, [biEntries, budgets, entries, isBiOnly, month, year]);
 
   const systemOptions = useMemo(() => {
     return Array.from(new Set(reportRows.filter((row) => team === "Todos" || row.equipo === team).map((row) => row.sistema))).sort((a, b) => a.localeCompare(b));
@@ -236,7 +234,8 @@ export function BudgetReportView({
     (team === "Todos" || row.equipo === team)
     && (system === "Todos" || row.sistema === system)
     && (society === "Todos" || row.sociedad === society)
-  ), [reportRows, society, system, team]);
+    && (budgetStatus === "Todos" || row.estado === budgetStatus)
+  ), [budgetStatus, reportRows, society, system, team]);
 
   const totals = useMemo(() => {
     const presupuesto = filteredRows.reduce((sum, row) => sum + row.presupuesto, 0);
@@ -255,7 +254,7 @@ export function BudgetReportView({
     setTeam(isBiOnly ? "BI" : "Todos");
     setSystem("Todos");
     setSociety("Todos");
-    setStatus("Todos");
+    setBudgetStatus("Todos");
   }
 
   function exportCsv() {
@@ -339,12 +338,10 @@ export function BudgetReportView({
           </label>
           <label>
             Estado
-            <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <select value={budgetStatus} onChange={(event) => setBudgetStatus(event.target.value)}>
               <option value="Todos">Todos</option>
-              <option value="En Proceso">En Proceso</option>
-              <option value="Cerrado">Cerrado</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="Cancelado">Cancelado</option>
+              <option value="Presupuestado">Presupuestado</option>
+              <option value="Sin presupuesto">Sin presupuesto</option>
             </select>
           </label>
         </div>
