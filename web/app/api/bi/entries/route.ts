@@ -51,6 +51,7 @@ async function readEntries(supabase: ReturnType<typeof adminClient>, profile: Pr
       .select("*")
       .eq("active", true)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(from, from + pageSize - 1);
 
     if (profile.role === "trabajador_bi") query = query.eq("asignado_a", profile.resource_name ?? "");

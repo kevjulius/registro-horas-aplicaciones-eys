@@ -194,6 +194,7 @@ export async function loadApplicationBudgets(): Promise<ApplicationBudget[]> {
         .eq("active", true)
         .order("equipo")
         .order("sistema")
+        .order("id")
         .range(from, from + pageSize - 1);
 
       if (error) return [];
@@ -255,6 +256,7 @@ export async function loadEntries(profile: Profile): Promise<TimeEntry[]> {
         .from("time_entries")
         .select("*")
         .order("fecha_reporte", { ascending: false })
+        .order("id", { ascending: false })
         .range(from, from + pageSize - 1);
       if (error) throw error;
       rows.push(...((data ?? []) as TimeEntry[]));
