@@ -15,26 +15,6 @@ type DailyRow = {
   hours: number;
 };
 
-function resourceKey(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
-}
-
-function uniqueResources(resources: string[]) {
-  const byKey = new Map<string, string>();
-  resources
-    .filter(Boolean)
-    .forEach((resource) => {
-      const key = resourceKey(resource);
-      if (key && !byKey.has(key)) byKey.set(key, resource.trim().replace(/\s+/g, " "));
-    });
-  return Array.from(byKey.values());
-}
-
 function isWeekend(date: string) {
   const day = new Date(`${date}T00:00:00`).getDay();
   return day === 0 || day === 6;
@@ -227,22 +207,20 @@ export function DashboardView({
     return new Set(
       profiles
         .filter((profile) => profile.active && profile.resource_name)
-        .map((profile) => resourceKey(profile.resource_name as string))
+        .map((profile) => profile.resource_name as string)
     );
   }, [profiles]);
 
   function onlyActiveResources(resources: string[]) {
-    const cleanResources = uniqueResources(resources);
-    if (!activeResources.size) return cleanResources;
-    return cleanResources.filter((resource) => activeResources.has(resourceKey(resource)));
+    if (!activeResources.size) return resources;
+    return resources.filter((resource) => activeResources.has(resource));
   }
 
   const selectedTeam = teams.find((team) => team.id === teamId) ?? null;
   const monthEntries = useMemo(() => {
-    const selectedTeamResources = new Set((selectedTeam?.resources ?? []).map(resourceKey));
     return entries.filter((entry) => {
       if (!entry.fecha_reporte.startsWith(month)) return false;
-      if (selectedTeam && !selectedTeamResources.has(resourceKey(entry.recurso))) return false;
+      if (selectedTeam && !selectedTeam.resources.includes(entry.recurso)) return false;
       return true;
     });
   }, [entries, month, selectedTeam]);
@@ -256,19 +234,18 @@ export function DashboardView({
   const appRows = useMemo(() => {
     const totals = new Map<string, number>();
     monthEntries.forEach((entry) => {
-      const key = resourceKey(entry.recurso);
-      totals.set(key, (totals.get(key) ?? 0) + Number(entry.horas_invertidas));
+      totals.set(entry.recurso, (totals.get(entry.recurso) ?? 0) + Number(entry.horas_invertidas));
     });
 
     return appResources
-      .map((resource) => ({ resource, hours: Number((totals.get(resourceKey(resource)) ?? 0).toFixed(2)) }))
+      .map((resource) => ({ resource, hours: Number((totals.get(resource) ?? 0).toFixed(2)) }))
       .filter((row) => row.hours > 0)
       .sort((a, b) => b.hours - a.hours || a.resource.localeCompare(b.resource));
   }, [appResources, monthEntries]);
 
   const appZeroResources = useMemo(() => {
-    const withHours = new Set(appRows.map((row) => resourceKey(row.resource)));
-    return appResources.filter((resource) => !withHours.has(resourceKey(resource)));
+    const withHours = new Set(appRows.map((row) => row.resource));
+    return appResources.filter((resource) => !withHours.has(resource));
   }, [appResources, appRows]);
 
   const biRows = useMemo(() => {
@@ -276,13 +253,10 @@ export function DashboardView({
     biEntries
       .filter((entry) => entry.fecha_inicio.startsWith(month))
       .forEach((entry) => {
-        const key = resourceKey(entry.asignado_a);
-        totals.set(key, (totals.get(key) ?? 0) + Number(entry.esfuerzo_horas));
+        totals.set(entry.asignado_a, (totals.get(entry.asignado_a) ?? 0) + Number(entry.esfuerzo_horas));
       });
-    const displayNames = new Map<string, string>();
-    uniqueResources(biEntries.map((entry) => entry.asignado_a)).forEach((resource) => displayNames.set(resourceKey(resource), resource));
     return Array.from(totals.entries())
-      .map(([key, hours]) => ({ resource: displayNames.get(key) ?? key, hours: Number(hours.toFixed(2)) }))
+      .map(([resource, hours]) => ({ resource, hours: Number(hours.toFixed(2)) }))
       .sort((a, b) => b.hours - a.hours || a.resource.localeCompare(b.resource));
   }, [biEntries, month]);
 
@@ -324,13 +298,13 @@ export function DashboardView({
 
     if (dailyArea === "Aplicaciones") {
       entries
-        .filter((entry) => entry.fecha_reporte.startsWith(month) && resourceKey(entry.recurso) === resourceKey(dailyResource))
+        .filter((entry) => entry.fecha_reporte.startsWith(month) && entry.recurso === dailyResource)
         .forEach((entry) => {
           totals.set(entry.fecha_reporte, (totals.get(entry.fecha_reporte) ?? 0) + Number(entry.horas_invertidas));
         });
     } else {
       biEntries
-        .filter((entry) => entry.fecha_inicio.startsWith(month) && resourceKey(entry.asignado_a) === resourceKey(dailyResource))
+        .filter((entry) => entry.fecha_inicio.startsWith(month) && entry.asignado_a === dailyResource)
         .forEach((entry) => {
           totals.set(entry.fecha_inicio, (totals.get(entry.fecha_inicio) ?? 0) + Number(entry.esfuerzo_horas));
         });
