@@ -20,6 +20,18 @@ async function requireBiProfile(request: Request, supabase: ReturnType<typeof ad
   return profile;
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const payload = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    return [payload.message, payload.details, payload.hint, payload.code]
+      .filter(Boolean)
+      .map(String)
+      .join(" | ") || fallback;
+  }
+  return fallback;
+}
+
 function mapEntry(row: Record<string, unknown>): BiEntry {
   return {
     id: String(row.id),
@@ -117,7 +129,7 @@ export async function GET(request: Request) {
     const profile = await requireBiProfile(request, supabase);
     return NextResponse.json({ entries: await readEntries(supabase, profile) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo leer registros BI." }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(error, "No se pudo leer registros BI.") }, { status: 500 });
   }
 }
 
@@ -175,7 +187,7 @@ export async function POST(request: Request) {
     if (error) throw error;
     return NextResponse.json({ entries: await readEntries(supabase, profile) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo guardar registro BI." }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(error, "No se pudo guardar registro BI.") }, { status: 500 });
   }
 }
 
@@ -200,6 +212,6 @@ export async function DELETE(request: Request) {
     if (error) throw error;
     return NextResponse.json({ entries: await readEntries(supabase, profile) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo eliminar registro BI." }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(error, "No se pudo eliminar registro BI.") }, { status: 500 });
   }
 }
