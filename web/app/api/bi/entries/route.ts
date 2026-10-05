@@ -91,16 +91,23 @@ async function nextCode(supabase: ReturnType<typeof adminClient>, attentionName:
   if (attentionError || !attention?.code) throw new Error(`Tipo de atencion BI invalido: ${attentionName}`);
   const code = normalizeCode(attention.code);
   const prefix = `BI-${code}`;
-  const { data, error } = await supabase.from("bi_entries").select("correlativo").ilike("correlativo", `${prefix}%`);
+  const { data, error } = await supabase
+    .from("bi_entries")
+    .select("correlativo")
+    .ilike("correlativo", `${prefix}%`)
+    .order("correlativo", { ascending: false })
+    .limit(1);
   if (error) throw error;
-  const nextNumber = Math.max(
-    0,
-    ...(data ?? []).map((item) => {
-      const match = String(item.correlativo ?? "").match(new RegExp(`^${prefix}(\\d+)$`, "i"));
-      return match ? Number(match[1]) : 0;
-    })
-  ) + 1;
+  const match = String(data?.[0]?.correlativo ?? "").match(new RegExp(`^${prefix}(\\d+)$`, "i"));
+  const nextNumber = (match ? Number(match[1]) : 0) + 1;
   return `${prefix}${String(nextNumber).padStart(7, "0")}`;
+}
+
+function isDuplicateCorrelativeError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const payload = error as { code?: unknown; message?: unknown; details?: unknown };
+  return payload.code === "23505"
+    && [payload.message, payload.details].some((value) => String(value ?? "").includes("bi_entries_correlativo_key"));
 }
 
 function validateEntry(entry: BiEntry, profile: Profile) {
@@ -164,7 +171,6 @@ export async function POST(request: Request) {
     }
 
     const row = {
-      correlativo: cleanEntry.correlativo || await nextCode(supabase, cleanEntry.tipo_atencion),
       asignado_a: cleanEntry.asignado_a,
       formato: cleanEntry.formato,
       solicitado_por: cleanEntry.solicitado_por,
@@ -180,11 +186,28 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString()
     };
 
-    const query = cleanEntry.id?.startsWith("new-")
-      ? supabase.from("bi_entries").insert(row)
-      : supabase.from("bi_entries").upsert({ ...row, id: cleanEntry.id });
-    const { error } = await query;
-    if (error) throw error;
+    if (cleanEntry.id?.startsWith("new-")) {
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const correlativo = cleanEntry.correlativo || await nextCode(supabase, cleanEntry.tipo_atencion);
+        const { error } = await supabase.from("bi_entries").insert({ ...row, correlativo });
+        if (!error) {
+          lastError = null;
+          break;
+        }
+        lastError = error;
+        if (cleanEntry.correlativo || !isDuplicateCorrelativeError(error)) break;
+      }
+      if (lastError) throw lastError;
+    } else {
+      const { error } = await supabase.from("bi_entries").upsert({
+        ...row,
+        id: cleanEntry.id,
+        correlativo: cleanEntry.correlativo || await nextCode(supabase, cleanEntry.tipo_atencion)
+      });
+      if (error) throw error;
+    }
+
     return NextResponse.json({ entries: await readEntries(supabase, profile) });
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error, "No se pudo guardar registro BI.") }, { status: 500 });
