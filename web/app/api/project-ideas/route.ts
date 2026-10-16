@@ -54,6 +54,7 @@ export async function GET(request: Request) {
           usuario_solicitante: idea.usuario_solicitante ?? ticket.usuario_solicitante,
           responsables: idea.responsables ?? ticket.ticket_responsables.map((link) => link.resource_name).sort(),
           horas_estimacion: idea.horas_estimacion === null ? null : Number(idea.horas_estimacion),
+          horas_reales: idea.horas_reales == null ? null : Number(idea.horas_reales),
           costo_cotizacion: idea.costo_cotizacion === null ? null : Number(idea.costo_cotizacion)
         } as ProjectIdea);
       }

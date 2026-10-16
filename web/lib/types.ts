@@ -170,6 +170,7 @@ export type ProjectIdea = {
   usuario_solicitante: string;
   responsables: string[];
   horas_estimacion: number | null;
+  horas_reales: number | null;
   costo_cotizacion: number | null;
   estado_cotizacion: "Por entregar" | "Por aprobar" | "Aprobado";
   fecha_inicio: string | null;

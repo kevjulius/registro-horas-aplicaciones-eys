@@ -3,6 +3,7 @@
 begin;
 
 alter table public.project_ideas
+  add column if not exists horas_reales numeric(12,2) check (horas_reales >= 0),
   add column if not exists alcance_proyecto text check (alcance_proyecto is null or btrim(alcance_proyecto) <> ''),
   add column if not exists titulo_correo text check (titulo_correo is null or btrim(titulo_correo) <> ''),
   add column if not exists sociedad text check (sociedad is null or btrim(sociedad) <> ''),
@@ -19,7 +20,7 @@ create policy "project ideas update manager" on public.project_ideas for update 
 
 revoke update on public.project_ideas from authenticated;
 grant update (alcance_proyecto, titulo_correo, sociedad, usuario_solicitante, responsables,
-  horas_estimacion, costo_cotizacion, estado_cotizacion, fecha_inicio, fecha_fin, estado_atencion, bloqueantes)
+  horas_estimacion, horas_reales, costo_cotizacion, estado_cotizacion, fecha_inicio, fecha_fin, estado_atencion, bloqueantes)
   on public.project_ideas to authenticated;
 
 notify pgrst, 'reload schema';

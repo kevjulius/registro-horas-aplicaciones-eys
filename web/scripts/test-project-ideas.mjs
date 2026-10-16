@@ -15,15 +15,19 @@ function loadTs(path) {
 const { cleanProjectIdeaUpdate, isProjectPlanning } = loadTs("../lib/project-ideas.ts");
 const values = { alcance_proyecto: "Alcance corregido", titulo_correo: "Titulo corregido", sociedad: "A125",
   usuario_solicitante: "Otro solicitante SPSA", responsables: ["Worker"],
-  horas_estimacion: null, costo_cotizacion: null, estado_cotizacion: "Por entregar",
+  horas_estimacion: null, horas_reales: null, costo_cotizacion: null, estado_cotizacion: "Por entregar",
   fecha_inicio: null, fecha_fin: null, estado_atencion: "Por aprobar cotizacion", bloqueantes: "" };
 assert(isProjectPlanning({ tipo_atencion: "Anteproyecto", subcategoria_atencion: " Planificaci\u00f3n " }));
 assert(!isProjectPlanning({ tipo_atencion: "Proyecto", subcategoria_atencion: "Planificacion" }));
 assert.deepEqual(cleanProjectIdeaUpdate(values), values);
 assert.equal(cleanProjectIdeaUpdate({ ...values, costo_cotizacion: 123.45 }).costo_cotizacion, 123.45);
+assert.equal(cleanProjectIdeaUpdate({ ...values, horas_reales: 12.75 }).horas_reales, 12.75);
+assert.equal(cleanProjectIdeaUpdate({ ...values, horas_reales: 0 }).horas_reales, 0);
+assert.equal(cleanProjectIdeaUpdate({ ...values, horas_reales: "" }).horas_reales, null);
 for (const patch of [{ costo_cotizacion: -1 }, { horas_estimacion: "4" }, { horas_estimacion: Infinity },
   { fecha_inicio: "2026-02-30" }, { fecha_inicio: "2026-10-20", fecha_fin: "2026-10-19" }, { estado_cotizacion: "Cerrado" },
-  { alcance_proyecto: " " }, { titulo_correo: "" }, { sociedad: " " }, { usuario_solicitante: null }, { responsables: [] }, { responsables: [" "] }]) {
+  { alcance_proyecto: " " }, { titulo_correo: "" }, { sociedad: " " }, { usuario_solicitante: null }, { responsables: [] }, { responsables: [" "] },
+  { horas_reales: -1 }, { horas_reales: Infinity }, { horas_reales: "12.75" }]) {
   assert.throws(() => cleanProjectIdeaUpdate({ ...values, ...patch }));
 }
 assert(!("ticket_id" in cleanProjectIdeaUpdate({ ...values, ticket_id: "changed" })));
@@ -100,6 +104,7 @@ try {
   assert.equal(idea.fecha_inicio, null);
   assert.equal(idea.fecha_fin, null);
   assert.equal(idea.horas_estimacion, null);
+  assert.equal(idea.horas_reales, null);
   assert.equal(idea.costo_cotizacion, null);
   assert.equal(idea.estado_cotizacion, "Por entregar");
   assert.equal((await db.query("select count(*)::int n from ticket_responsables where ticket_id=$1", [ticketId])).rows[0].n, 2);
@@ -116,6 +121,11 @@ try {
   const editMigration = readFileSync(new URL("../supabase/edit_project_ideas.sql", import.meta.url), "utf8");
   await db.exec(editMigration);
   await db.exec(editMigration);
+  await db.exec("alter table project_ideas drop column horas_reales");
+  const actualHoursMigration = readFileSync(new URL("../supabase/add_project_idea_actual_hours.sql", import.meta.url), "utf8");
+  await db.exec(actualHoursMigration);
+  await db.exec(actualHoursMigration);
+  assert.equal((await db.query("select horas_reales from project_ideas where id=$1", [idea.id])).rows[0].horas_reales, null);
   assert.equal((await db.query("select ticket_id from project_ideas where id=$1", [idea.id])).rows[0].ticket_id, ticketId);
   async function asUser(id, work) {
     await db.exec("set role authenticated");
@@ -137,10 +147,14 @@ try {
     await assert.rejects(db.query("update project_ideas set idea_number=9999"), /permission denied/);
     await assert.rejects(db.query("delete from project_ideas"), /permission denied/);
     await assert.rejects(db.query("select public.create_project_planning_ticket($1::jsonb,$2::text[],$3::uuid)", [JSON.stringify(ticket), ["Leader"], ids.leader]), /permission denied/);
-    await db.query(`update project_ideas set costo_cotizacion=123.45,horas_estimacion=8.5,
+    await assert.rejects(db.query("update project_ideas set horas_reales=-1 where id=$1", [idea.id]), /check constraint/);
+    await db.query("update project_ideas set horas_reales=0 where id=$1", [idea.id]);
+    await db.query("update project_ideas set horas_reales=null where id=$1", [idea.id]);
+    await db.query(`update project_ideas set costo_cotizacion=123.45,horas_estimacion=8.5,horas_reales=12.75,
       alcance_proyecto=$2, titulo_correo=$3, sociedad=$4, usuario_solicitante=$5, responsables=$6 where id=$1`,
       [idea.id, values.alcance_proyecto, values.titulo_correo, values.sociedad, values.usuario_solicitante, values.responsables]);
     assert.equal(Number((await db.query("select costo_cotizacion from project_ideas")).rows[0].costo_cotizacion), 123.45);
+    assert.equal(Number((await db.query("select horas_reales from project_ideas")).rows[0].horas_reales), 12.75);
   });
   assert.equal((await db.query("select updated_by from project_ideas")).rows[0].updated_by, ids.manager);
   const original = (await db.query("select alcance_proyecto,subject_correo,formato,usuario_solicitante from tickets where id=$1", [ticketId])).rows[0];
@@ -159,6 +173,7 @@ try {
   });
   await db.exec(migration);
   assert.equal((await db.query("select alcance_proyecto from project_ideas where id=$1", [idea.id])).rows[0].alcance_proyecto, values.alcance_proyecto, "Re-running migration must preserve idea corrections");
+  assert.equal(Number((await db.query("select horas_reales from project_ideas where id=$1", [idea.id])).rows[0].horas_reales), 12.75);
   await create({ ...ticket, codigo_tck: "ANT260002" });
   assert.equal((await db.query("select count(distinct correlativo)::int n from project_ideas")).rows[0].n, 2);
   console.log("PASS: validation, upgrade/re-run, leader permissions, atomic creation, unique correlatives, empty dates, admin/manager editing, fixed identifiers and original ticket preserved.");

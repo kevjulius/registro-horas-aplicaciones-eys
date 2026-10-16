@@ -13,6 +13,7 @@
 - Se guardan ticket, idea y responsables en una transaccion. La secuencia genera IDEA0001, IDEA0002, etc. Un intento fallido puede dejar saltos en la numeracion.
 - Los datos iniciales se leen del ticket. Al editar la idea se guardan sus propios valores de alcance, titulo, sociedad, solicitante y responsables. Esas correcciones no modifican el ticket original. El alcance del proyecto es un campo distinto del alcance habitual de la atencion.
 - HH estimacion y costo nacen vacios. El costo es en soles (PEN). Las fechas del proyecto nacen vacias y son independientes de las fechas del ticket.
+- Cantidad HH reales es editable, nace vacio y admite cero o valores positivos con hasta dos decimales. Se ingresa manualmente en la idea y se incluye en el CSV. Para instalaciones existentes, ejecutar `add_project_idea_actual_hours.sql`.
 - Estado inicial de cotizacion: Por entregar. Estado inicial de atencion: Por aprobar cotizacion.
 - `consulta_proyectos` y `administracion` pueden consultar, filtrar, descargar y editar todos los campos de la idea excepto correlativo y ticket vinculado. Los lideres conservan sus accesos habituales.
 - Si ya se ejecuto una version anterior de la migracion, ejecutar `edit_project_ideas.sql` para agregar los campos propios y habilitar la edicion completa. No altera los datos de los tickets ni reinicia correlativos.

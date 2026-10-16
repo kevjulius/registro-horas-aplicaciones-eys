@@ -17,7 +17,7 @@ export function isProjectPlanning(ticket: { tipo_atencion: string; subcategoria_
 
 export type ProjectIdeaUpdate = Pick<ProjectIdea,
   "alcance_proyecto" | "titulo_correo" | "sociedad" | "usuario_solicitante" | "responsables"
-  | "horas_estimacion" | "costo_cotizacion" | "estado_cotizacion" | "fecha_inicio" | "fecha_fin" | "estado_atencion" | "bloqueantes"
+  | "horas_estimacion" | "horas_reales" | "costo_cotizacion" | "estado_cotizacion" | "fecha_inicio" | "fecha_fin" | "estado_atencion" | "bloqueantes"
 >;
 
 export function cleanProjectIdeaUpdate(input: Record<string, unknown>): ProjectIdeaUpdate {
@@ -63,6 +63,7 @@ export function cleanProjectIdeaUpdate(input: Record<string, unknown>): ProjectI
     usuario_solicitante: requiredText("usuario_solicitante", "Usuario solicitante"),
     responsables: Array.from(new Set(input.responsables.map((value: string) => value.trim()))),
     horas_estimacion: amount("horas_estimacion"),
+    horas_reales: amount("horas_reales"),
     costo_cotizacion: amount("costo_cotizacion"),
     estado_cotizacion: input.estado_cotizacion as ProjectIdea["estado_cotizacion"],
     fecha_inicio, fecha_fin,

@@ -85,11 +85,11 @@ export function ProjectIdeasView({ refreshVersion, canEdit }: { refreshVersion: 
 
   function exportCsv() {
     const headers = ["Correlativo", "Ticket", "Alcance Proyecto", "Titulo de Correo", "Sociedad / empresa",
-      "Usuario solicitante", "Responsables de la atencion", "Cantidad HH estimacion", "Costo cotizacion (S/)",
+      "Usuario solicitante", "Responsables de la atencion", "Cantidad HH estimacion", "Cantidad HH reales", "Costo cotizacion (S/)",
       "Estado cotizacion", "Fecha inicio", "Fecha fin", "Estado de la atencion", "Bloqueantes identificados"];
     const rows = [headers.map(csvValue).join(";"), ...filtered.map((idea) => [
       idea.correlativo, idea.ticket_code, idea.alcance_proyecto, idea.titulo_correo, idea.sociedad,
-      idea.usuario_solicitante, idea.responsables.join("; "), idea.horas_estimacion, idea.costo_cotizacion,
+      idea.usuario_solicitante, idea.responsables.join("; "), idea.horas_estimacion, idea.horas_reales, idea.costo_cotizacion,
       idea.estado_cotizacion, idea.fecha_inicio, idea.fecha_fin, idea.estado_atencion, idea.bloqueantes
     ].map(csvValue).join(";"))];
     const url = URL.createObjectURL(new Blob([`\uFEFF${rows.join("\r\n")}`], { type: "text/csv;charset=utf-8" }));
@@ -144,6 +144,7 @@ export function ProjectIdeasView({ refreshVersion, canEdit }: { refreshVersion: 
           </fieldset>
           <fieldset disabled={busy} className="project-idea-fields grid grid-3">
             <label>Cantidad HH estimacion<input type="number" min="0" max="9999999999.99" step="0.01" value={editing.horas_estimacion ?? ""} onChange={(event) => patch({ horas_estimacion: event.target.value === "" ? null : Number(event.target.value) })} /></label>
+            <label>Cantidad HH reales<input type="number" min="0" max="9999999999.99" step="0.01" value={editing.horas_reales ?? ""} onChange={(event) => patch({ horas_reales: event.target.value === "" ? null : Number(event.target.value) })} /></label>
             <label>Costo cotizacion (S/)<input type="number" min="0" max="9999999999.99" step="0.01" value={editing.costo_cotizacion ?? ""} onChange={(event) => patch({ costo_cotizacion: event.target.value === "" ? null : Number(event.target.value) })} /></label>
             <SelectField label="Estado cotizacion" value={editing.estado_cotizacion} options={quotationStatuses} onChange={(value) => patch({ estado_cotizacion: value as ProjectIdea["estado_cotizacion"] })} />
             <label>Fecha inicio<input type="date" value={editing.fecha_inicio ?? ""} max={editing.fecha_fin ?? undefined} onChange={(event) => patch({ fecha_inicio: event.target.value || null })} /></label>
@@ -157,21 +158,22 @@ export function ProjectIdeasView({ refreshVersion, canEdit }: { refreshVersion: 
 
       <div className={`card table-card project-ideas-table${canEdit ? " can-edit" : ""}`}>
         <table>
-          <colgroup>{[112, 118, 280, 240, 190, 170, 210, 110, 130, 140, 115, 115, 170, 260, 64].slice(0, canEdit ? 15 : 14).map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
-          <thead><tr>{["Correlativo", "Ticket", "Alcance Proyecto", "Titulo de Correo", "Sociedad / empresa", "Usuario solicitante", "Responsables", "HH estimacion", "Costo (S/)", "Estado cotizacion", "Fecha inicio", "Fecha fin", "Estado atencion", "Bloqueantes", ""].slice(0, canEdit ? 15 : 14).map((label, index) => <th key={index} scope="col">{label}</th>)}</tr></thead>
+          <colgroup>{[112, 118, 280, 240, 190, 170, 210, 110, 110, 130, 140, 115, 115, 170, 260, 64].slice(0, canEdit ? 16 : 15).map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+          <thead><tr>{["Correlativo", "Ticket", "Alcance Proyecto", "Titulo de Correo", "Sociedad / empresa", "Usuario solicitante", "Responsables", "HH estimacion", "Cantidad HH reales", "Costo (S/)", "Estado cotizacion", "Fecha inicio", "Fecha fin", "Estado atencion", "Bloqueantes", ""].slice(0, canEdit ? 16 : 15).map((label, index) => <th key={index} scope="col">{label}</th>)}</tr></thead>
           <tbody>
             {(editing ? filtered.filter((idea) => idea.id === editing.id) : filtered).map((idea) => (
               <tr key={idea.id}>
                 <td>{idea.correlativo}</td><td>{idea.ticket_code}</td><td>{idea.alcance_proyecto}</td><td>{idea.titulo_correo}</td>
                 <td>{idea.sociedad}</td><td>{idea.usuario_solicitante}</td><td>{idea.responsables.join("; ")}</td>
                 <td>{idea.horas_estimacion === null ? "—" : number.format(idea.horas_estimacion)}</td>
+                <td>{idea.horas_reales == null ? "—" : number.format(idea.horas_reales)}</td>
                 <td>{idea.costo_cotizacion === null ? "—" : money.format(idea.costo_cotizacion)}</td>
                 <td>{idea.estado_cotizacion}</td><td>{dateLabel(idea.fecha_inicio)}</td><td>{dateLabel(idea.fecha_fin)}</td>
                 <td>{idea.estado_atencion}</td><td>{idea.bloqueantes || "—"}</td>
                 {canEdit && <td><button className="secondary icon-button" title={`Editar ${idea.correlativo}`} aria-label={`Editar ${idea.correlativo}`} disabled={busy} type="button" onClick={() => setEditing({ ...idea })}><Pencil size={16} /></button></td>}
               </tr>
             ))}
-            {!filtered.length && <tr><td colSpan={canEdit ? 15 : 14}>No hay ideas de proyecto para los filtros seleccionados.</td></tr>}
+            {!filtered.length && <tr><td colSpan={canEdit ? 16 : 15}>No hay ideas de proyecto para los filtros seleccionados.</td></tr>}
           </tbody>
         </table>
       </div>
