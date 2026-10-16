@@ -40,6 +40,10 @@ function cleanList(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
+function missingLeaderColumn(error: { code?: string } | null) {
+  return error?.code === "42703" || error?.code === "PGRST204";
+}
+
 async function readTeams(supabase: ReturnType<typeof adminClient>): Promise<Team[]> {
   const { data: teams, error: teamsError } = await supabase
     .from("teams")
@@ -53,12 +57,16 @@ async function readTeams(supabase: ReturnType<typeof adminClient>): Promise<Team
 
   const [resourceLinks, profileLinks, applicationLinks] = await Promise.all([
     supabase.from("resource_teams").select("team_id, resource_name").in("team_id", teamIds),
-    supabase.from("profile_teams").select("team_id, profile_id").in("team_id", teamIds),
+    supabase.from("profile_teams").select("team_id, profile_id, is_leader").in("team_id", teamIds),
     supabase.from("team_applications").select("team_id, application_name").in("team_id", teamIds)
   ]);
 
   if (resourceLinks.error) throw resourceLinks.error;
-  if (profileLinks.error) throw profileLinks.error;
+  if (missingLeaderColumn(profileLinks.error)) {
+    const legacy = await supabase.from("profile_teams").select("team_id, profile_id").in("team_id", teamIds);
+    if (legacy.error) throw legacy.error;
+    profileLinks.data = (legacy.data ?? []).map((link) => ({ ...link, is_leader: false }));
+  } else if (profileLinks.error) throw profileLinks.error;
   if (applicationLinks.error) throw applicationLinks.error;
 
   return (teams ?? []).map((team) => ({
@@ -75,6 +83,9 @@ async function readTeams(supabase: ReturnType<typeof adminClient>): Promise<Team
       .sort((a, b) => a.localeCompare(b)),
     profile_ids: (profileLinks.data ?? [])
       .filter((item) => item.team_id === team.id)
+      .map((item) => item.profile_id),
+    leader_profile_ids: (profileLinks.data ?? [])
+      .filter((item) => item.team_id === team.id && item.is_leader)
       .map((item) => item.profile_id)
   }));
 }
@@ -105,9 +116,29 @@ export async function POST(request: Request) {
         resources: cleanList(team.resources ?? []),
         applications: cleanList(team.applications ?? []),
         profile_ids: cleanList(team.profile_ids ?? []),
+        leader_profile_ids: cleanList(team.leader_profile_ids ?? []),
         active: team.active !== false
       }))
       .filter((team) => team.name);
+
+    const leaderIds = cleanList(cleanTeams.flatMap((team) => team.leader_profile_ids));
+    const { error: leaderSchemaError } = await supabase.from("profile_teams").select("is_leader").limit(0);
+    if (leaderSchemaError && !missingLeaderColumn(leaderSchemaError)) throw leaderSchemaError;
+    const supportsLeaders = !leaderSchemaError;
+    if (!supportsLeaders && leaderIds.length) {
+      throw new Error("Ejecuta add_project_ideas.sql en Supabase antes de asignar lideres.");
+    }
+    if (cleanTeams.some((team) => team.leader_profile_ids.some((id) => !team.profile_ids.includes(id)))) {
+      throw new Error("Los lideres deben ser miembros de su equipo.");
+    }
+    if (leaderIds.length) {
+      const { data: leaders, error } = await supabase.from("profiles").select("id, role, active").in("id", leaderIds);
+      if (error) throw error;
+      if (leaderIds.some((id) => !leaders?.some((profile) => profile.id === id && profile.active
+        && ["trabajador", "trabajador_aplicaciones", "administracion"].includes(profile.role)))) {
+        throw new Error("Los lideres deben ser usuarios activos de Aplicaciones.");
+      }
+    }
 
     const activeNames = new Set(cleanTeams.map((team) => team.name));
 
@@ -152,7 +183,8 @@ export async function POST(request: Request) {
     const profileRows = cleanTeams.flatMap((team) => {
       const teamId = existingByName.get(team.name);
       if (!teamId) return [];
-      return team.profile_ids.map((profileId) => ({ team_id: teamId, profile_id: profileId }));
+      return team.profile_ids.map((profileId) => ({ team_id: teamId, profile_id: profileId,
+        ...(supportsLeaders ? { is_leader: team.leader_profile_ids.includes(profileId) } : {}) }));
     });
     const applicationRows = cleanTeams.flatMap((team) => {
       const teamId = existingByName.get(team.name);

@@ -12,9 +12,11 @@ import { BudgetReportView } from "@/components/views/BudgetReportView";
 import { DashboardView } from "@/components/views/DashboardView";
 import { EntriesView } from "@/components/views/EntriesView";
 import { TicketsView } from "@/components/views/TicketsView";
+import { ProjectIdeasView } from "@/components/views/ProjectIdeasView";
 import {
   getCurrentProfile,
   loadApplicationBudgets,
+  loadCanPlanProjects,
   loadBiEntries,
   loadBiMasters,
   loadEntries,
@@ -41,6 +43,7 @@ const menuItems = [
   { key: "cargabi", label: "Carga Masiva BI" },
   { key: "dashboard", label: "Dashboard" },
   { key: "presupuesto", label: "Presupuesto vs Consumo" },
+  { key: "ideas", label: "Ideas de Proyecto" },
   { key: "adminbi", label: "Administracion BI" },
   { key: "admin", label: "Administracion" }
 ] as const;
@@ -56,10 +59,13 @@ function isBiRole(profile: Profile | null) {
 }
 
 function defaultPageFor(profile: Profile) {
+  if (profile.role === "consulta_proyectos") return "ideas";
   return isApplicationRole(profile) ? "guia" : "bi";
 }
 
 function canViewPage(profile: Profile, key: PageKey) {
+  if (profile.role === "consulta_proyectos") return key === "ideas";
+  if (key === "ideas") return false;
   if (["tickets", "guia", "listado", "carga"].includes(key)) return isApplicationRole(profile);
   if (key === "bi" || key === "cargabi") return isBiRole(profile);
   if (key === "dashboard") return true;
@@ -91,6 +97,8 @@ export default function Home() {
   const [loginMessage, setLoginMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [canPlanProjects, setCanPlanProjects] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -115,7 +123,7 @@ export default function Home() {
     const biAllowed = isBiRole(currentProfile);
     const masterData = appAllowed ? await loadMasters() : null;
     const biMasterData = biAllowed ? await loadBiMasters() : null;
-    const [entryData, biEntryData, profileData, teamData, ticketData, visibleResourceData, visibleApplicationData, expectedHoursData, budgetData] = await Promise.all([
+    const [entryData, biEntryData, profileData, teamData, ticketData, visibleResourceData, visibleApplicationData, expectedHoursData, budgetData, canPlan] = await Promise.all([
       appAllowed && masterData ? loadEntries(currentProfile) : Promise.resolve([]),
       biAllowed ? loadBiEntries(currentProfile) : Promise.resolve([]),
       currentProfile.role === "administracion" ? loadProfiles() : Promise.resolve([]),
@@ -123,8 +131,9 @@ export default function Home() {
       appAllowed ? loadTickets(currentProfile) : Promise.resolve([]),
       appAllowed && masterData ? loadVisibleResources(currentProfile, masterData) : Promise.resolve([]),
       appAllowed && masterData ? loadVisibleApplications(currentProfile, masterData) : Promise.resolve([]),
-      loadExpectedHoursByMonth(),
-      ["adminbi", "administracion"].includes(currentProfile.role) ? loadApplicationBudgets() : Promise.resolve([])
+      currentProfile.role !== "consulta_proyectos" ? loadExpectedHoursByMonth() : Promise.resolve([]),
+      ["adminbi", "administracion"].includes(currentProfile.role) ? loadApplicationBudgets() : Promise.resolve([]),
+      appAllowed ? loadCanPlanProjects(currentProfile) : Promise.resolve(false)
     ]);
     setMasters(masterData);
     setBiMasters(biMasterData);
@@ -137,6 +146,8 @@ export default function Home() {
     setVisibleApplications(visibleApplicationData);
     setExpectedHoursByMonth(expectedHoursData);
     setApplicationBudgets(budgetData);
+    setCanPlanProjects(canPlan);
+    setRefreshVersion((version) => version + 1);
   }
 
   async function handleLogin(event: React.FormEvent) {
@@ -309,7 +320,8 @@ export default function Home() {
         {page === "carga" && masters && <BulkUploadView profile={profile} masters={masters} tickets={tickets} onSaved={() => refresh(profile)} />}
         {page === "guia" && <AttentionGuideView />}
         {page === "listado" && masters && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
-        {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} visibleApplications={visibleApplications} onChanged={() => refresh(profile)} />}
+        {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} visibleApplications={visibleApplications} canPlanProjects={canPlanProjects} onChanged={() => refresh(profile)} />}
+        {page === "ideas" && profile.role === "consulta_proyectos" && <ProjectIdeasView refreshVersion={refreshVersion} />}
         {page === "bi" && biMasters && <BiView profile={profile} masters={biMasters} entries={biEntries} onChanged={() => refresh(profile)} />}
         {page === "cargabi" && biMasters && <BiBulkUploadView profile={profile} masters={biMasters} onSaved={() => refresh(profile)} />}
         {page === "dashboard" &&

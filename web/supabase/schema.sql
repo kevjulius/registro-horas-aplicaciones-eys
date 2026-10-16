@@ -1,8 +1,9 @@
+-- Para habilitar Ideas de Proyecto, ejecutar tambien add_project_ideas.sql despues de este esquema.
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null unique,
   display_name text not null,
-  role text not null check (role in ('trabajador', 'trabajador_aplicaciones', 'trabajador_bi', 'adminbi', 'administracion')),
+  role text not null check (role in ('trabajador', 'trabajador_aplicaciones', 'trabajador_bi', 'adminbi', 'administracion', 'consulta_proyectos')),
   resource_name text,
   active boolean not null default true,
   created_at timestamptz not null default now()
@@ -61,6 +62,7 @@ create table public.teams (
 create table public.profile_teams (
   profile_id uuid not null references public.profiles(id) on delete cascade,
   team_id uuid not null references public.teams(id) on delete cascade,
+  is_leader boolean not null default false,
   primary key (profile_id, team_id)
 );
 
@@ -86,6 +88,7 @@ create table public.tickets (
   fecha_recepcion date not null,
   subject_correo text not null,
   alcance_correo text not null,
+  alcance_proyecto text not null default '',
   tipo_atencion text not null check (tipo_atencion in ('Requerimiento', 'Proyecto', 'Anteproyecto', 'Soporte', 'Monitoreo', 'Incidencia', 'Actividades Internas')),
   subcategoria_atencion text not null default '',
   estado text not null check (estado in ('Cerrado', 'Pendiente', 'En Proceso', 'Cancelado')),

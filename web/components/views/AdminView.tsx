@@ -13,7 +13,8 @@ const roleOptions: Profile["role"][] = [
   "trabajador_aplicaciones",
   "trabajador_bi",
   "adminbi",
-  "administracion"
+  "administracion",
+  "consulta_proyectos"
 ];
 
 export function AdminView({
@@ -225,7 +226,8 @@ export function AdminView({
         active: true,
         resources: [],
         applications: [],
-        profile_ids: []
+        profile_ids: [],
+        leader_profile_ids: []
       }
     ]);
   }
@@ -233,7 +235,9 @@ export function AdminView({
   function patchTeam(index: number, values: Partial<Team>) {
     setLocalTeams((current) => {
       const next = [...current];
-      next[index] = { ...next[index], ...values };
+      const updated = { ...next[index], ...values };
+      updated.leader_profile_ids = (updated.leader_profile_ids ?? []).filter((id) => updated.profile_ids.includes(id));
+      next[index] = updated;
       return next;
     });
   }
@@ -448,13 +452,14 @@ export function AdminView({
             <div className="grid grid-3">
               <label>
                 Rol
-                <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as Profile["role"] })}>
+                <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as Profile["role"], resource_name: e.target.value === "consulta_proyectos" ? null : newUser.resource_name })}>
                   {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
                 </select>
               </label>
               <label>
                 Recurso
-                <select value={newUser.resource_name ?? ""} onChange={(e) => setNewUser({ ...newUser, resource_name: e.target.value })}>
+                <select disabled={newUser.role === "consulta_proyectos"} value={newUser.resource_name ?? ""} onChange={(e) => setNewUser({ ...newUser, resource_name: e.target.value || null })}>
+                  <option value="">Sin recurso</option>
                   {masters.recursos.map((resource) => <option key={resource}>{resource}</option>)}
                 </select>
               </label>
@@ -490,13 +495,13 @@ export function AdminView({
                       <input value={user.display_name} onChange={(event) => patchProfile(index, { display_name: event.target.value })} />
                     </td>
                     <td>
-                      <select value={user.role} onChange={(event) => patchProfile(index, { role: event.target.value as Profile["role"] })}>
+                      <select value={user.role} onChange={(event) => patchProfile(index, { role: event.target.value as Profile["role"], resource_name: event.target.value === "consulta_proyectos" ? null : user.resource_name })}>
                         {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
                         {user.role === "trabajador" && <option value="trabajador">trabajador</option>}
                       </select>
                     </td>
                     <td>
-                      <select value={user.resource_name ?? ""} onChange={(event) => patchProfile(index, { resource_name: event.target.value || null })}>
+                      <select disabled={user.role === "consulta_proyectos"} value={user.resource_name ?? ""} onChange={(event) => patchProfile(index, { resource_name: event.target.value || null })}>
                         <option value="">Sin recurso</option>
                         {masters.recursos.map((resource) => <option key={resource} value={resource}>{resource}</option>)}
                       </select>
@@ -543,6 +548,21 @@ export function AdminView({
                       <Trash2 size={16} />
                     </button>
                   </div>
+                  <fieldset className="team-leaders">
+                    <legend>Lideres del equipo</legend>
+                    {localProfiles.filter((user) => user.active && team.profile_ids.includes(user.id)
+                      && ["trabajador", "trabajador_aplicaciones", "administracion"].includes(user.role)).map((user) => (
+                      <label key={user.id}>
+                        <input type="checkbox" checked={(team.leader_profile_ids ?? []).includes(user.id)}
+                          onChange={(event) => {
+                            const leaders = team.leader_profile_ids ?? [];
+                            patchTeam(index, { leader_profile_ids: event.target.checked
+                              ? [...leaders, user.id] : leaders.filter((id) => id !== user.id) });
+                          }} />
+                        {user.display_name}
+                      </label>
+                    ))}
+                  </fieldset>
                   <div className="team-assignment-grid">
                     <div className="assignment-panel">
                       <div className="assignment-head">

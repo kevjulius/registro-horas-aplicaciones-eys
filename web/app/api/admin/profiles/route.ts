@@ -70,10 +70,13 @@ export async function POST(request: Request) {
         ...profile,
         email: profile.email.trim().toLowerCase(),
         display_name: profile.display_name.trim(),
-        resource_name: profile.resource_name || null
+        resource_name: profile.role === "consulta_proyectos" ? null : profile.resource_name || null
       };
 
       if (!cleanProfile.email || !cleanProfile.display_name || !cleanProfile.role) continue;
+      if (!["trabajador", "trabajador_aplicaciones", "trabajador_bi", "adminbi", "administracion", "consulta_proyectos"].includes(cleanProfile.role)) {
+        throw new Error("Rol no valido.");
+      }
 
       let userId = cleanProfile.id;
 

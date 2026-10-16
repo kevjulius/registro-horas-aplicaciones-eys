@@ -18,6 +18,7 @@ import {
 } from "@/components/app-shared";
 import { closeExpiredTickets, requestTicket, saveEntry, saveTickets, updateOwnTicket } from "@/lib/repository";
 import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
+import { isProjectPlanning } from "@/lib/project-ideas";
 import type { MasterData, Profile, Ticket, TimeEntry } from "@/lib/types";
 
 function ticketSortValue(ticket: Ticket) {
@@ -30,6 +31,7 @@ export function TicketsView({
   tickets,
   visibleResources,
   visibleApplications,
+  canPlanProjects = false,
   onChanged
 }: {
   profile: Profile;
@@ -37,6 +39,7 @@ export function TicketsView({
   tickets: Ticket[];
   visibleResources: string[];
   visibleApplications: string[];
+  canPlanProjects?: boolean;
   onChanged: () => void;
 }) {
   const isAdmin = profile.role === "administracion";
@@ -178,6 +181,10 @@ export function TicketsView({
   }
 
   function validateTicketForm(ticket: Ticket) {
+    if (isProjectPlanning(ticket)) {
+      if (ticket.id.startsWith("new-") && !canPlanProjects) return "Solo los lideres de equipo pueden crear Anteproyecto - Planificacion.";
+      if (ticket.id.startsWith("new-") && (!ticket.alcance_proyecto?.trim() || !ticket.subject_correo.trim())) return "Alcance Proyecto y Titulo de Correo son obligatorios.";
+    }
     const required = [
       ticket.fecha_solicitud,
       ticket.sistema,
@@ -226,7 +233,7 @@ export function TicketsView({
     }
     try {
       setIsBusy(true);
-      const normalizedTicket = { ...ticketToSave, subject_correo: ticketToSave.alcance_correo };
+      const normalizedTicket = { ...ticketToSave, subject_correo: isProjectPlanning(ticketToSave) ? ticketToSave.subject_correo : ticketToSave.alcance_correo };
       let generatedCode = normalizedTicket.codigo_tck;
       if (isAdmin) {
         const previousCodes = new Set(tickets.map((item) => item.codigo_tck));
@@ -398,6 +405,7 @@ export function TicketsView({
           showReceptionDate={false}
           resourceOptions={responsibleOptions}
           applicationOptions={visibleApplications}
+          canPlanProjects={canPlanProjects}
           disabled={isBusy}
         />
       )}

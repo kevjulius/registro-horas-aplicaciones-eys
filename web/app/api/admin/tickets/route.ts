@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Profile, Ticket, TicketAttentionType } from "@/lib/types";
+import { createPlanningTicket, validatePlanningPermission } from "@/lib/project-ideas-server";
+import { isProjectPlanning } from "@/lib/project-ideas";
 
 const ticketPrefixes: Record<TicketAttentionType, string> = {
   Requerimiento: "REQ",
@@ -189,6 +191,7 @@ async function readTickets(supabase: ReturnType<typeof adminClient>): Promise<Ti
     fecha_recepcion: row.fecha_recepcion,
     subject_correo: row.subject_correo,
     alcance_correo: row.alcance_correo,
+    alcance_proyecto: row.alcance_proyecto ?? "",
     tipo_atencion: row.tipo_atencion,
     subcategoria_atencion: row.subcategoria_atencion ?? "",
     estado: row.estado,
@@ -279,8 +282,9 @@ export async function POST(request: Request) {
         sistema: ticket.sistema.trim(),
         formato: ticket.formato.trim(),
         usuario_solicitante: ticket.usuario_solicitante.trim(),
-        subject_correo: (ticket.subject_correo || ticket.alcance_correo).trim(),
+        subject_correo: isProjectPlanning(ticket) ? ticket.subject_correo?.trim() ?? "" : (ticket.subject_correo || ticket.alcance_correo).trim(),
         alcance_correo: ticket.alcance_correo.trim(),
+        alcance_proyecto: ticket.alcance_proyecto?.trim() ?? "",
         subcategoria_atencion: ticket.subcategoria_atencion.trim(),
         en_servicio: ticket.en_servicio ?? "No",
         aplicativo_se_encuentra: ticket.aplicativo_se_encuentra ?? "Si",
@@ -296,6 +300,16 @@ export async function POST(request: Request) {
     const usedCodes = new Set(cleanTickets.map((ticket) => ticket.codigo_tck).filter(Boolean));
 
     for (const ticket of cleanTickets) {
+      if (ticket.active && isProjectPlanning(ticket)) {
+        let createsIdea = ticket.id.startsWith("new-");
+        if (!createsIdea) {
+          const { data: current, error } = await supabase.from("tickets")
+            .select("tipo_atencion, subcategoria_atencion").eq("id", ticket.id).single();
+          if (error) throw error;
+          createsIdea = !isProjectPlanning(current);
+        }
+        await validatePlanningPermission(supabase, ticket, profile.id, createsIdea);
+      }
       if (ticket.active && (!ticket.codigo_tck || ticket.id.startsWith("new-"))) {
         ticket.codigo_tck = await nextCode(supabase, ticket.tipo_atencion, usedCodes);
       }
@@ -318,6 +332,7 @@ export async function POST(request: Request) {
         fecha_recepcion: ticket.fecha_recepcion,
         subject_correo: ticket.subject_correo,
         alcance_correo: ticket.alcance_correo,
+        ...(isProjectPlanning(ticket) ? { alcance_proyecto: ticket.alcance_proyecto } : {}),
         tipo_atencion: ticket.tipo_atencion,
         subcategoria_atencion: ticket.subcategoria_atencion,
         estado: ticket.estado,
@@ -332,6 +347,11 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
         ...(ticket.id.startsWith("new-") ? { requested_by: profile.id } : {})
       };
+
+      if (ticket.id.startsWith("new-") && isProjectPlanning(ticket)) {
+        await createPlanningTicket(supabase, row, ticket.responsables, profile.id);
+        continue;
+      }
 
       const query = ticket.id.startsWith("new-")
         ? supabase.from("tickets").insert(row).select("id").single()

@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { Save, X } from "lucide-react";
 import { ticketMatchesReportPeriod } from "@/lib/ticket-period";
+import { isProjectPlanning } from "@/lib/project-ideas";
 import type { MasterData, Profile, Ticket, TicketAttentionType, TimeEntry } from "@/lib/types";
 
 export const estados = ["En Proceso", "Cerrado", "Pendiente"] as const;
@@ -88,6 +89,7 @@ export function emptyTicket(): Ticket {
     fecha_recepcion: today(),
     subject_correo: "",
     alcance_correo: "",
+    alcance_proyecto: "",
     tipo_atencion: "Requerimiento",
     subcategoria_atencion: "",
     estado: "En Proceso",
@@ -329,6 +331,7 @@ export function TicketForm({
   showReceptionDate = true,
   resourceOptions,
   applicationOptions,
+  canPlanProjects = false,
   disabled = false
 }: {
   ticket: Ticket;
@@ -344,6 +347,7 @@ export function TicketForm({
   showReceptionDate?: boolean;
   resourceOptions?: string[];
   applicationOptions?: string[];
+  canPlanProjects?: boolean;
   disabled?: boolean;
 }) {
   const readOnlyField = disabled || limitedEdit;
@@ -360,6 +364,10 @@ export function TicketForm({
     .filter((item) => item.type === ticket.tipo_atencion)
     .map((item) => item.classification)
     .filter(Boolean);
+  const planning = isProjectPlanning(ticket);
+  const availableSubcategories = subcategories.filter((subcategory) =>
+    !ticket.id.startsWith("new-") || canPlanProjects
+      || !isProjectPlanning({ tipo_atencion: ticket.tipo_atencion, subcategoria_atencion: subcategory }));
 
   return (
     <div className="card grid ticket-form-card">
@@ -385,7 +393,11 @@ export function TicketForm({
               {(attentionTypes.length ? attentionTypes : ticketAttentionTypes).map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
           </label>
-          <SelectField disabled={readOnlyField} label="Subcategoria" value={ticket.subcategoria_atencion} options={subcategories} onChange={(value) => onPatch({ subcategoria_atencion: value })} />
+          <SelectField disabled={readOnlyField} label="Subcategoria" value={ticket.subcategoria_atencion} options={availableSubcategories} onChange={(value) => onPatch({
+            subcategoria_atencion: value,
+            ...(ticket.id.startsWith("new-") && !planning && isProjectPlanning({ ...ticket, subcategoria_atencion: value })
+              ? { subject_correo: "", alcance_proyecto: "" } : {})
+          })} />
           <label>
             Estado
             <select disabled={readOnlyField} value={ticket.estado} onChange={(event) => onPatch({ estado: event.target.value as Ticket["estado"] })}>
@@ -455,10 +467,24 @@ export function TicketForm({
           <textarea
             disabled={readOnlyField}
             value={ticket.alcance_correo}
-            onChange={(event) => onPatch({ alcance_correo: event.target.value, subject_correo: event.target.value })}
+            onChange={(event) => onPatch({ alcance_correo: event.target.value, ...(!planning ? { subject_correo: event.target.value } : {}) })}
             placeholder="Describe el alcance de la atencion..."
           />
         </label>
+        {planning && (
+          <div className="grid grid-2 project-planning-fields">
+            <label>
+              Alcance Proyecto *
+              <textarea disabled={readOnlyField} required value={ticket.alcance_proyecto ?? ""}
+                onChange={(event) => onPatch({ alcance_proyecto: event.target.value })} />
+            </label>
+            <label>
+              Titulo de Correo *
+              <input disabled={readOnlyField} required value={ticket.subject_correo}
+                onChange={(event) => onPatch({ subject_correo: event.target.value })} />
+            </label>
+          </div>
+        )}
       </div>
 
       <button type="button" disabled={disabled} onClick={onSubmit}><Save size={16} /> {submitLabel}</button>

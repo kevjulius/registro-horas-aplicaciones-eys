@@ -1,4 +1,4 @@
-export type Role = "trabajador" | "trabajador_aplicaciones" | "trabajador_bi" | "adminbi" | "administracion";
+export type Role = "trabajador" | "trabajador_aplicaciones" | "trabajador_bi" | "adminbi" | "administracion" | "consulta_proyectos";
 
 export type Profile = {
   id: string;
@@ -94,6 +94,7 @@ export type Team = {
   resources: string[];
   applications: string[];
   profile_ids: string[];
+  leader_profile_ids?: string[];
 };
 
 export type TimeEntry = {
@@ -138,6 +139,7 @@ export type Ticket = {
   fecha_recepcion: string;
   subject_correo: string;
   alcance_correo: string;
+  alcance_proyecto?: string;
   tipo_atencion: TicketAttentionType;
   subcategoria_atencion: string;
   estado: TicketStatus;
@@ -155,4 +157,24 @@ export type Ticket = {
   active: boolean;
   created_at?: string;
   updated_at?: string;
+};
+
+export type ProjectIdea = {
+  id: string;
+  correlativo: string;
+  ticket_id: string;
+  ticket_code: string;
+  alcance_proyecto: string;
+  titulo_correo: string;
+  sociedad: string;
+  usuario_solicitante: string;
+  responsables: string[];
+  horas_estimacion: number | null;
+  costo_cotizacion: number | null;
+  estado_cotizacion: "Por entregar" | "Por aprobar" | "Aprobado";
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  estado_atencion: "Por aprobar cotizacion" | "Por iniciar" | "En analisis" | "En desarrollo" | "En pruebas" | "En pase a produccion" | "Cerrado";
+  bloqueantes: string;
+  updated_at: string;
 };

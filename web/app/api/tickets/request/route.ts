@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Profile, Ticket, TicketAttentionType } from "@/lib/types";
+import { createPlanningTicket, validatePlanningPermission } from "@/lib/project-ideas-server";
+import { isProjectPlanning } from "@/lib/project-ideas";
 
 const ticketPrefixes: Record<TicketAttentionType, string> = {
   Requerimiento: "REQ",
@@ -58,6 +60,9 @@ async function requireProfile(request: Request, supabase: ReturnType<typeof admi
 
   if (profileError || !profile?.active || !profile.resource_name) {
     throw new Error("No existe un perfil activo con recurso asignado.");
+  }
+  if (!["trabajador", "trabajador_aplicaciones", "administracion"].includes(profile.role)) {
+    throw new Error("Tu rol no permite acceder a tickets de Aplicaciones.");
   }
 
   return profile;
@@ -262,6 +267,7 @@ function mapTicketRow(row: Record<string, any>, creatorNames: Map<string, string
     fecha_recepcion: row.fecha_recepcion,
     subject_correo: row.subject_correo,
     alcance_correo: row.alcance_correo,
+    alcance_proyecto: row.alcance_proyecto ?? "",
     tipo_atencion: row.tipo_atencion,
     subcategoria_atencion: row.subcategoria_atencion ?? "",
     estado: row.estado,
@@ -364,6 +370,8 @@ export async function PUT(request: Request) {
       : ticket;
     const responsables = cleanList(ticketToSave.responsables ?? []);
     validateTicket(ticketToSave, responsables, assignableResources, visibleApplications, maxDaysByType);
+    await validatePlanningPermission(supabase, ticketToSave, profile.id,
+      isProjectPlanning(ticketToSave) && !isProjectPlanning(currentTicket));
 
     const row = {
       fecha_solicitud: ticketToSave.fecha_solicitud,
@@ -373,6 +381,7 @@ export async function PUT(request: Request) {
       fecha_recepcion: ticketToSave.fecha_recepcion,
       subject_correo: (ticketToSave.subject_correo || ticketToSave.alcance_correo).trim(),
       alcance_correo: ticketToSave.alcance_correo.trim(),
+      ...(isProjectPlanning(ticketToSave) ? { alcance_proyecto: ticketToSave.alcance_proyecto?.trim() ?? "" } : {}),
       tipo_atencion: ticketToSave.tipo_atencion,
       subcategoria_atencion: ticketToSave.subcategoria_atencion.trim(),
       estado: ticketToSave.estado,
@@ -417,6 +426,7 @@ export async function POST(request: Request) {
     const responsables = cleanList(ticket.responsables?.length ? ticket.responsables : [profile.resource_name ?? ""]);
     const maxDaysByType = await loadMaxDaysByType(supabase);
     validateTicket(ticket, responsables, visibleResources, visibleApplications, maxDaysByType);
+    await validatePlanningPermission(supabase, ticket, profile.id, true);
 
     const codigoTck = await nextCode(supabase, ticket.tipo_atencion);
     const row = {
@@ -428,6 +438,7 @@ export async function POST(request: Request) {
       fecha_recepcion: ticket.fecha_recepcion,
       subject_correo: (ticket.subject_correo || ticket.alcance_correo).trim(),
       alcance_correo: ticket.alcance_correo.trim(),
+      ...(isProjectPlanning(ticket) ? { alcance_proyecto: ticket.alcance_proyecto?.trim() ?? "" } : {}),
       tipo_atencion: ticket.tipo_atencion,
       subcategoria_atencion: ticket.subcategoria_atencion.trim(),
       estado: ticket.estado,
@@ -442,13 +453,15 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString()
     };
 
-    const { data: saved, error } = await supabase.from("tickets").insert(row).select("id").single();
-    if (error) throw error;
-
-    const { error: linkError } = await supabase
-      .from("ticket_responsables")
-      .insert(responsables.map((resourceName) => ({ ticket_id: saved.id, resource_name: resourceName })));
-    if (linkError) throw linkError;
+    if (isProjectPlanning(ticket)) {
+      await createPlanningTicket(supabase, row, responsables, profile.id);
+    } else {
+      const { data: saved, error } = await supabase.from("tickets").insert(row).select("id").single();
+      if (error) throw error;
+      const { error: linkError } = await supabase.from("ticket_responsables")
+        .insert(responsables.map((resourceName) => ({ ticket_id: saved.id, resource_name: resourceName })));
+      if (linkError) throw linkError;
+    }
 
     return NextResponse.json({ tickets: await readTickets(supabase, profile), ticketCode: codigoTck });
   } catch (error) {

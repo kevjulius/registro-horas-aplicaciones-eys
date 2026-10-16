@@ -2,7 +2,8 @@
 
 import { demoBiEntries, demoBiMasters, demoEntries, demoMasterData, demoProfiles, demoTeams, demoTickets } from "./demo-data";
 import { hasSupabaseConfig, supabase } from "./supabase";
-import type { ApplicationBudget, BiEntry, BiMasterData, ExpectedHoursByMonth, MasterData, Profile, Team, Ticket, TimeEntry } from "./types";
+import type { ApplicationBudget, BiEntry, BiMasterData, ExpectedHoursByMonth, MasterData, Profile, ProjectIdea, Team, Ticket, TimeEntry } from "./types";
+import type { ProjectIdeaUpdate } from "./project-ideas";
 
 const entriesKey = "eys.time_entries";
 const profilesKey = "eys.profiles";
@@ -345,6 +346,7 @@ function mapTicket(row: Record<string, unknown>): Ticket {
     fecha_recepcion: String(row.fecha_recepcion ?? ""),
     subject_correo: String(row.subject_correo ?? ""),
     alcance_correo: String(row.alcance_correo ?? ""),
+    alcance_proyecto: String(row.alcance_proyecto ?? ""),
     tipo_atencion: row.tipo_atencion as Ticket["tipo_atencion"],
     subcategoria_atencion: String(row.subcategoria_atencion ?? ""),
     estado: row.estado as Ticket["estado"],
@@ -593,6 +595,32 @@ export async function loadTeams(): Promise<Team[]> {
   }
 
   return readLocal(teamsKey, demoTeams);
+}
+
+export async function loadCanPlanProjects(profile: Profile): Promise<boolean> {
+  if (hasSupabaseConfig && supabase) {
+    const { data, error } = await supabase.rpc("current_profile_can_plan_projects");
+    if (error) return false;
+    return data === true;
+  }
+  return readLocal(teamsKey, demoTeams).some((team) => team.active && team.leader_profile_ids?.includes(profile.id));
+}
+
+export async function loadProjectIdeas(): Promise<ProjectIdea[]> {
+  const response = await fetch("/api/project-ideas", { headers: await authHeaders(), cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? "No se pudo leer ideas de proyecto.");
+  return payload.ideas;
+}
+
+export async function saveProjectIdea(id: string, values: ProjectIdeaUpdate): Promise<void> {
+  const response = await fetch("/api/project-ideas", {
+    method: "PATCH", headers: await authHeaders(), body: JSON.stringify({ id, ...values })
+  });
+  if (!response.ok) {
+    const payload = await response.json();
+    throw new Error(payload.error ?? "No se pudo guardar la idea de proyecto.");
+  }
 }
 
 export async function loadVisibleResources(profile: Profile, masters: MasterData): Promise<string[]> {
