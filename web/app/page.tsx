@@ -59,13 +59,14 @@ function isBiRole(profile: Profile | null) {
 }
 
 function defaultPageFor(profile: Profile) {
-  if (profile.role === "consulta_proyectos") return "ideas";
+  if (profile.role === "consulta_proyectos" || (profile.role === "administracion"
+    && typeof window !== "undefined" && window.location.pathname === "/ideas-proyecto")) return "ideas";
   return isApplicationRole(profile) ? "guia" : "bi";
 }
 
 function canViewPage(profile: Profile, key: PageKey) {
   if (profile.role === "consulta_proyectos") return key === "ideas";
-  if (key === "ideas") return false;
+  if (key === "ideas") return profile.role === "administracion";
   if (["tickets", "guia", "listado", "carga"].includes(key)) return isApplicationRole(profile);
   if (key === "bi" || key === "cargabi") return isBiRole(profile);
   if (key === "dashboard") return true;
@@ -321,7 +322,8 @@ export default function Home() {
         {page === "guia" && <AttentionGuideView />}
         {page === "listado" && masters && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
         {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} visibleApplications={visibleApplications} canPlanProjects={canPlanProjects} onChanged={() => refresh(profile)} />}
-        {page === "ideas" && profile.role === "consulta_proyectos" && <ProjectIdeasView refreshVersion={refreshVersion} />}
+        {page === "ideas" && ["consulta_proyectos", "administracion"].includes(profile.role)
+          && <ProjectIdeasView refreshVersion={refreshVersion} canEdit={profile.role === "consulta_proyectos"} />}
         {page === "bi" && biMasters && <BiView profile={profile} masters={biMasters} entries={biEntries} onChanged={() => refresh(profile)} />}
         {page === "cargabi" && biMasters && <BiBulkUploadView profile={profile} masters={biMasters} onSaved={() => refresh(profile)} />}
         {page === "dashboard" &&

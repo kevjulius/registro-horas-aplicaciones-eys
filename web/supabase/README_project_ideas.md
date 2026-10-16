@@ -14,7 +14,8 @@
 - Los datos marcados como provenientes del ticket se leen desde el ticket actual; no se duplican. El alcance del proyecto es un campo distinto del alcance habitual de la atencion.
 - HH estimacion y costo nacen vacios. El costo es en soles (PEN). Las fechas del proyecto nacen vacias y son independientes de las fechas del ticket.
 - Estado inicial de cotizacion: Por entregar. Estado inicial de atencion: Por aprobar cotizacion.
-- Solo `consulta_proyectos` puede ingresar al modulo y modificar el seguimiento. Los lideres y el administrador general no pueden editar costos, estimaciones ni estados desde sus cuentas habituales.
+- `consulta_proyectos` puede ingresar al modulo y modificar el seguimiento. `administracion` puede consultar, filtrar y descargar el listado, sin editar costos, estimaciones ni estados. Los lideres conservan sus accesos habituales.
+- Si ya se ejecuto una version anterior de la migracion, ejecutar `allow_admin_project_ideas.sql` para habilitar la lectura del administrador en BD.
 - El listado permite buscar, filtrar, refrescar y exportar a CSV las filas filtradas, con todos sus campos.
 - Los tickets historicos no generan ideas automaticamente al ejecutar la migracion. Eliminar fisicamente un ticket con idea esta restringido para conservar su referencia.
 

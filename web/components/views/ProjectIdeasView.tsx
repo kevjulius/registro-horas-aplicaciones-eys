@@ -17,7 +17,7 @@ function csvValue(value: string | number | null) {
   return `"${(/^[=+@-]/.test(text) ? "'" + text : text).replace(/"/g, '""')}"`;
 }
 
-export function ProjectIdeasView({ refreshVersion }: { refreshVersion: number }) {
+export function ProjectIdeasView({ refreshVersion, canEdit }: { refreshVersion: number; canEdit: boolean }) {
   const [ideas, setIdeas] = useState<ProjectIdea[]>([]);
   const [editing, setEditing] = useState<ProjectIdea | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,7 +60,7 @@ export function ProjectIdeasView({ refreshVersion }: { refreshVersion: number })
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
-    if (!editing || busy) return;
+    if (!editing || busy || !canEdit) return;
     try {
       const values = cleanProjectIdeaUpdate(editing);
       setBusy(true);
@@ -115,7 +115,7 @@ export function ProjectIdeasView({ refreshVersion }: { refreshVersion: number })
         <SelectField label="Responsable" options={["Todos", ...responsibles]} value={responsible} onChange={setResponsible} />
       </div>
 
-      {editing && (
+      {editing && canEdit && (
         <form className="card grid project-idea-editor" onSubmit={save}>
           <div className="section-head compact">
             <h3>{editing.correlativo} · {editing.ticket_code}</h3>
@@ -141,10 +141,10 @@ export function ProjectIdeasView({ refreshVersion }: { refreshVersion: number })
         </form>
       )}
 
-      <div className="card table-card project-ideas-table">
+      <div className={`card table-card project-ideas-table${canEdit ? " can-edit" : ""}`}>
         <table>
-          <colgroup>{[112, 118, 280, 240, 190, 170, 210, 110, 130, 140, 115, 115, 170, 260, 64].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
-          <thead><tr>{["Correlativo", "Ticket", "Alcance Proyecto", "Titulo de Correo", "Sociedad / empresa", "Usuario solicitante", "Responsables", "HH estimacion", "Costo (S/)", "Estado cotizacion", "Fecha inicio", "Fecha fin", "Estado atencion", "Bloqueantes", ""].map((label, index) => <th key={index} scope="col">{label}</th>)}</tr></thead>
+          <colgroup>{[112, 118, 280, 240, 190, 170, 210, 110, 130, 140, 115, 115, 170, 260, 64].slice(0, canEdit ? 15 : 14).map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+          <thead><tr>{["Correlativo", "Ticket", "Alcance Proyecto", "Titulo de Correo", "Sociedad / empresa", "Usuario solicitante", "Responsables", "HH estimacion", "Costo (S/)", "Estado cotizacion", "Fecha inicio", "Fecha fin", "Estado atencion", "Bloqueantes", ""].slice(0, canEdit ? 15 : 14).map((label, index) => <th key={index} scope="col">{label}</th>)}</tr></thead>
           <tbody>
             {(editing ? filtered.filter((idea) => idea.id === editing.id) : filtered).map((idea) => (
               <tr key={idea.id}>
@@ -154,10 +154,10 @@ export function ProjectIdeasView({ refreshVersion }: { refreshVersion: number })
                 <td>{idea.costo_cotizacion === null ? "—" : money.format(idea.costo_cotizacion)}</td>
                 <td>{idea.estado_cotizacion}</td><td>{dateLabel(idea.fecha_inicio)}</td><td>{dateLabel(idea.fecha_fin)}</td>
                 <td>{idea.estado_atencion}</td><td>{idea.bloqueantes || "—"}</td>
-                <td><button className="secondary icon-button" title={`Editar ${idea.correlativo}`} aria-label={`Editar ${idea.correlativo}`} disabled={busy} type="button" onClick={() => setEditing({ ...idea })}><Pencil size={16} /></button></td>
+                {canEdit && <td><button className="secondary icon-button" title={`Editar ${idea.correlativo}`} aria-label={`Editar ${idea.correlativo}`} disabled={busy} type="button" onClick={() => setEditing({ ...idea })}><Pencil size={16} /></button></td>}
               </tr>
             ))}
-            {!filtered.length && <tr><td colSpan={15}>No hay ideas de proyecto para los filtros seleccionados.</td></tr>}
+            {!filtered.length && <tr><td colSpan={canEdit ? 15 : 14}>No hay ideas de proyecto para los filtros seleccionados.</td></tr>}
           </tbody>
         </table>
       </div>

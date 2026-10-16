@@ -113,7 +113,7 @@ try {
   }
   for (const actor of [ids.leader, ids.worker, ids.admin, ids.bi]) {
     await asUser(actor, async () => {
-      assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, 0);
+      assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, actor === ids.admin ? 1 : 0);
       const updated = await db.query("update project_ideas set costo_cotizacion=900 returning id");
       assert.equal(updated.rows.length, 0, "Only project manager can update tracking");
     });
@@ -129,6 +129,14 @@ try {
     assert.equal(Number((await db.query("select costo_cotizacion from project_ideas")).rows[0].costo_cotizacion), 123.45);
   });
   assert.equal((await db.query("select updated_by from project_ideas")).rows[0].updated_by, ids.manager);
+  await db.exec(`drop policy "project ideas read manager" on project_ideas;
+    create policy "project ideas read manager" on project_ideas for select to authenticated
+      using (public.current_profile_role() = 'consulta_proyectos');`);
+  await db.exec(readFileSync(new URL("../supabase/allow_admin_project_ideas.sql", import.meta.url), "utf8"));
+  await asUser(ids.admin, async () => {
+    assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, 1);
+    assert.equal((await db.query("update project_ideas set costo_cotizacion=999 returning id")).rows.length, 0);
+  });
   await db.exec(migration);
   await create({ ...ticket, codigo_tck: "ANT260002" });
   assert.equal((await db.query("select count(distinct correlativo)::int n from project_ideas")).rows[0].n, 2);

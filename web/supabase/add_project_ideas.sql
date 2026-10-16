@@ -53,7 +53,7 @@ alter table public.project_ideas enable row level security;
 
 drop policy if exists "project ideas read manager" on public.project_ideas;
 create policy "project ideas read manager" on public.project_ideas for select to authenticated
-  using (public.current_profile_role() = 'consulta_proyectos');
+  using (public.current_profile_role() in ('consulta_proyectos', 'administracion'));
 drop policy if exists "project ideas update manager" on public.project_ideas;
 create policy "project ideas update manager" on public.project_ideas for update to authenticated
   using (public.current_profile_role() = 'consulta_proyectos')

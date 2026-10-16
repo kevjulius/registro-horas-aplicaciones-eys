@@ -620,8 +620,8 @@ th {
   z-index: 2;
 }
 
-.project-ideas-table th:last-child,
-.project-ideas-table td:last-child {
+.project-ideas-table.can-edit th:last-child,
+.project-ideas-table.can-edit td:last-child {
   position: sticky;
   right: 0;
   background: #fff;
@@ -629,7 +629,7 @@ th {
 }
 
 .project-ideas-table th:first-child,
-.project-ideas-table th:last-child {
+.project-ideas-table.can-edit th:last-child {
   z-index: 4;
 }
 

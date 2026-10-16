@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 class AccessError extends Error {}
 
-async function managerClients(request: Request) {
+async function managerClients(request: Request, requireEdit = false) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -19,8 +19,11 @@ async function managerClients(request: Request) {
   const { data: auth, error: authError } = await admin.auth.getUser(token);
   if (authError || !auth.user) throw new AccessError("Sesion no valida.");
   const { data: profile, error } = await admin.from("profiles").select("role, active").eq("id", auth.user.id).single();
-  if (error || !profile?.active || profile.role !== "consulta_proyectos") {
-    throw new AccessError("Solo el rol consulta_proyectos puede ingresar a Ideas de Proyecto.");
+  if (error || !profile?.active || !["consulta_proyectos", "administracion"].includes(profile.role)) {
+    throw new AccessError("Solo administracion y consulta_proyectos pueden ingresar a Ideas de Proyecto.");
+  }
+  if (requireEdit && profile.role !== "consulta_proyectos") {
+    throw new AccessError("Solo el rol consulta_proyectos puede editar el seguimiento de las ideas.");
   }
   const manager = createClient(url, anonKey, { ...options, global: { headers: { Authorization: `Bearer ${token}` } } });
   return { admin, manager };
@@ -65,7 +68,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { manager } = await managerClients(request);
+    const { manager } = await managerClients(request, true);
     const input = await request.json();
     if (typeof input.id !== "string" || !/^[0-9a-f-]{36}$/i.test(input.id)) throw new Error("Idea no valida.");
     const values = cleanProjectIdeaUpdate(input);
