@@ -633,25 +633,6 @@ th {
   z-index: 4;
 }
 
-.project-idea-details {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: 16px;
-  margin: 0;
-}
-
-.project-idea-details dt {
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 6px;
-}
-
-.project-idea-details dd {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .project-idea-fields {
   border: 0;
   padding: 0;

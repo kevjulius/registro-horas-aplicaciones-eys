@@ -323,7 +323,7 @@ export default function Home() {
         {page === "listado" && masters && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
         {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} visibleApplications={visibleApplications} canPlanProjects={canPlanProjects} onChanged={() => refresh(profile)} />}
         {page === "ideas" && ["consulta_proyectos", "administracion"].includes(profile.role)
-          && <ProjectIdeasView refreshVersion={refreshVersion} canEdit={profile.role === "consulta_proyectos"} />}
+          && <ProjectIdeasView refreshVersion={refreshVersion} canEdit />}
         {page === "bi" && biMasters && <BiView profile={profile} masters={biMasters} entries={biEntries} onChanged={() => refresh(profile)} />}
         {page === "cargabi" && biMasters && <BiBulkUploadView profile={profile} masters={biMasters} onSaved={() => refresh(profile)} />}
         {page === "dashboard" &&

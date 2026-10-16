@@ -2,7 +2,7 @@
 
 import { demoBiEntries, demoBiMasters, demoEntries, demoMasterData, demoProfiles, demoTeams, demoTickets } from "./demo-data";
 import { hasSupabaseConfig, supabase } from "./supabase";
-import type { ApplicationBudget, BiEntry, BiMasterData, ExpectedHoursByMonth, MasterData, Profile, ProjectIdea, Team, Ticket, TimeEntry } from "./types";
+import type { ApplicationBudget, BiEntry, BiMasterData, ExpectedHoursByMonth, MasterData, Profile, ProjectIdea, ProjectIdeaCatalogs, Team, Ticket, TimeEntry } from "./types";
 import type { ProjectIdeaUpdate } from "./project-ideas";
 
 const entriesKey = "eys.time_entries";
@@ -606,11 +606,11 @@ export async function loadCanPlanProjects(profile: Profile): Promise<boolean> {
   return readLocal(teamsKey, demoTeams).some((team) => team.active && team.leader_profile_ids?.includes(profile.id));
 }
 
-export async function loadProjectIdeas(): Promise<ProjectIdea[]> {
+export async function loadProjectIdeas(): Promise<{ ideas: ProjectIdea[]; catalogs?: ProjectIdeaCatalogs }> {
   const response = await fetch("/api/project-ideas", { headers: await authHeaders(), cache: "no-store" });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error ?? "No se pudo leer ideas de proyecto.");
-  return payload.ideas;
+  return payload;
 }
 
 export async function saveProjectIdea(id: string, values: ProjectIdeaUpdate): Promise<void> {

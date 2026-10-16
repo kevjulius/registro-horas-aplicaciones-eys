@@ -49,6 +49,12 @@ create table if not exists public.project_ideas (
   updated_by uuid references public.profiles(id) on delete set null,
   check (fecha_inicio is null or fecha_fin is null or fecha_fin >= fecha_inicio)
 );
+alter table public.project_ideas
+  add column if not exists alcance_proyecto text check (alcance_proyecto is null or btrim(alcance_proyecto) <> ''),
+  add column if not exists titulo_correo text check (titulo_correo is null or btrim(titulo_correo) <> ''),
+  add column if not exists sociedad text check (sociedad is null or btrim(sociedad) <> ''),
+  add column if not exists usuario_solicitante text check (usuario_solicitante is null or btrim(usuario_solicitante) <> ''),
+  add column if not exists responsables text[] check (responsables is null or (cardinality(responsables) > 0 and array_position(responsables, null) is null));
 alter table public.project_ideas enable row level security;
 
 drop policy if exists "project ideas read manager" on public.project_ideas;
@@ -56,12 +62,13 @@ create policy "project ideas read manager" on public.project_ideas for select to
   using (public.current_profile_role() in ('consulta_proyectos', 'administracion'));
 drop policy if exists "project ideas update manager" on public.project_ideas;
 create policy "project ideas update manager" on public.project_ideas for update to authenticated
-  using (public.current_profile_role() = 'consulta_proyectos')
-  with check (public.current_profile_role() = 'consulta_proyectos');
+  using (public.current_profile_role() in ('consulta_proyectos', 'administracion'))
+  with check (public.current_profile_role() in ('consulta_proyectos', 'administracion'));
 revoke all on public.project_ideas from anon, authenticated;
 grant select on public.project_ideas to authenticated;
 grant select on public.project_ideas to service_role;
-grant update (horas_estimacion, costo_cotizacion, estado_cotizacion, fecha_inicio, fecha_fin, estado_atencion, bloqueantes)
+grant update (alcance_proyecto, titulo_correo, sociedad, usuario_solicitante, responsables,
+  horas_estimacion, costo_cotizacion, estado_cotizacion, fecha_inicio, fecha_fin, estado_atencion, bloqueantes)
   on public.project_ideas to authenticated;
 
 create or replace function public.stamp_project_idea_update()

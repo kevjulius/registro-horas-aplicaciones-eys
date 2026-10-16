@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, FilterX, Pencil, RefreshCw, Save, Search, X } from "lucide-react";
-import { LoadingOverlay, SelectField, today, useAutoDismissNotice } from "@/components/app-shared";
+import { LoadingOverlay, MultiDropdownField, MultiSelectField, SearchableField, SelectField, today, useAutoDismissNotice } from "@/components/app-shared";
 import { loadProjectIdeas, saveProjectIdea } from "@/lib/repository";
 import { cleanProjectIdeaUpdate, projectAttentionStatuses, quotationStatuses } from "@/lib/project-ideas";
-import type { ProjectIdea } from "@/lib/types";
+import type { ProjectIdea, ProjectIdeaCatalogs } from "@/lib/types";
 
 const money = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" });
 const number = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 2 });
@@ -19,6 +19,7 @@ function csvValue(value: string | number | null) {
 
 export function ProjectIdeasView({ refreshVersion, canEdit }: { refreshVersion: number; canEdit: boolean }) {
   const [ideas, setIdeas] = useState<ProjectIdea[]>([]);
+  const [catalogs, setCatalogs] = useState<ProjectIdeaCatalogs>({ sociedades: [], solicitantes: [], responsables: [] });
   const [editing, setEditing] = useState<ProjectIdea | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -33,7 +34,11 @@ export function ProjectIdeasView({ refreshVersion, canEdit }: { refreshVersion: 
 
   const refresh = useCallback(async () => {
     setBusy(true);
-    try { setIdeas(await loadProjectIdeas()); }
+    try {
+      const data = await loadProjectIdeas();
+      setIdeas(data.ideas);
+      setCatalogs(data.catalogs ?? { sociedades: [], solicitantes: [], responsables: [] });
+    }
     catch (error) {
       setMessageType("error");
       setMessage(error instanceof Error ? error.message : "No se pudo cargar el listado.");
@@ -44,6 +49,9 @@ export function ProjectIdeasView({ refreshVersion, canEdit }: { refreshVersion: 
 
   const companies = useMemo(() => Array.from(new Set(ideas.map((idea) => idea.sociedad))).sort(), [ideas]);
   const responsibles = useMemo(() => Array.from(new Set(ideas.flatMap((idea) => idea.responsables))).sort(), [ideas]);
+  const editSocieties = Array.from(new Set([...catalogs.sociedades,
+    ...(editing?.sociedad.split("|").map((name) => name.trim()).filter(Boolean) ?? [])])).sort();
+  const editResponsibles = Array.from(new Set([...catalogs.responsables, ...(editing?.responsables ?? [])])).sort();
   const filtered = useMemo(() => {
     const text = search.trim().toLowerCase();
     return ideas.filter((idea) => (quotation === "Todos" || idea.estado_cotizacion === quotation)
@@ -121,13 +129,19 @@ export function ProjectIdeasView({ refreshVersion, canEdit }: { refreshVersion: 
             <h3>{editing.correlativo} · {editing.ticket_code}</h3>
             <button className="secondary icon-button" type="button" title="Cerrar edicion" aria-label="Cerrar edicion" disabled={busy} onClick={() => setEditing(null)}><X size={16} /></button>
           </div>
-          <dl className="project-idea-details">
-            <div><dt>Alcance Proyecto</dt><dd>{editing.alcance_proyecto}</dd></div>
-            <div><dt>Titulo de Correo</dt><dd>{editing.titulo_correo}</dd></div>
-            <div><dt>Sociedad / empresa</dt><dd>{editing.sociedad}</dd></div>
-            <div><dt>Usuario solicitante</dt><dd>{editing.usuario_solicitante}</dd></div>
-            <div><dt>Responsables de la atencion</dt><dd>{editing.responsables.join("; ")}</dd></div>
-          </dl>
+          <div className="grid grid-2">
+            <label>Correlativo<input readOnly value={editing.correlativo} /></label>
+            <label>Ticket<input readOnly value={editing.ticket_code} /></label>
+          </div>
+          <fieldset disabled={busy} className="project-idea-fields grid grid-2 project-planning-fields">
+            <label>Alcance Proyecto *<textarea required value={editing.alcance_proyecto} onChange={(event) => patch({ alcance_proyecto: event.target.value })} /></label>
+            <label>Titulo de Correo *<input required value={editing.titulo_correo} onChange={(event) => patch({ titulo_correo: event.target.value })} /></label>
+            <MultiSelectField label="Sociedad / empresa *" value={editing.sociedad} options={editSocieties} onChange={(sociedad) => patch({ sociedad })} />
+            <SearchableField label="Usuario solicitante *" value={editing.usuario_solicitante} options={catalogs.solicitantes} onChange={(usuario_solicitante) => patch({ usuario_solicitante })} />
+            <MultiDropdownField label="Responsables de la atencion *" selected={editing.responsables} options={editResponsibles}
+              onToggle={(resource) => patch({ responsables: editing.responsables.includes(resource)
+                ? editing.responsables.filter((name) => name !== resource) : [...editing.responsables, resource] })} />
+          </fieldset>
           <fieldset disabled={busy} className="project-idea-fields grid grid-3">
             <label>Cantidad HH estimacion<input type="number" min="0" max="9999999999.99" step="0.01" value={editing.horas_estimacion ?? ""} onChange={(event) => patch({ horas_estimacion: event.target.value === "" ? null : Number(event.target.value) })} /></label>
             <label>Costo cotizacion (S/)<input type="number" min="0" max="9999999999.99" step="0.01" value={editing.costo_cotizacion ?? ""} onChange={(event) => patch({ costo_cotizacion: event.target.value === "" ? null : Number(event.target.value) })} /></label>

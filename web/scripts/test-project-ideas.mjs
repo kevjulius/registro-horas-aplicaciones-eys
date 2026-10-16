@@ -13,17 +13,21 @@ function loadTs(path) {
   return module.exports;
 }
 const { cleanProjectIdeaUpdate, isProjectPlanning } = loadTs("../lib/project-ideas.ts");
-const values = { horas_estimacion: null, costo_cotizacion: null, estado_cotizacion: "Por entregar",
+const values = { alcance_proyecto: "Alcance corregido", titulo_correo: "Titulo corregido", sociedad: "A125",
+  usuario_solicitante: "Otro solicitante SPSA", responsables: ["Worker"],
+  horas_estimacion: null, costo_cotizacion: null, estado_cotizacion: "Por entregar",
   fecha_inicio: null, fecha_fin: null, estado_atencion: "Por aprobar cotizacion", bloqueantes: "" };
 assert(isProjectPlanning({ tipo_atencion: "Anteproyecto", subcategoria_atencion: " Planificaci\u00f3n " }));
 assert(!isProjectPlanning({ tipo_atencion: "Proyecto", subcategoria_atencion: "Planificacion" }));
 assert.deepEqual(cleanProjectIdeaUpdate(values), values);
 assert.equal(cleanProjectIdeaUpdate({ ...values, costo_cotizacion: 123.45 }).costo_cotizacion, 123.45);
 for (const patch of [{ costo_cotizacion: -1 }, { horas_estimacion: "4" }, { horas_estimacion: Infinity },
-  { fecha_inicio: "2026-02-30" }, { fecha_inicio: "2026-10-20", fecha_fin: "2026-10-19" }, { estado_cotizacion: "Cerrado" }]) {
+  { fecha_inicio: "2026-02-30" }, { fecha_inicio: "2026-10-20", fecha_fin: "2026-10-19" }, { estado_cotizacion: "Cerrado" },
+  { alcance_proyecto: " " }, { titulo_correo: "" }, { sociedad: " " }, { usuario_solicitante: null }, { responsables: [] }, { responsables: [" "] }]) {
   assert.throws(() => cleanProjectIdeaUpdate({ ...values, ...patch }));
 }
 assert(!("ticket_id" in cleanProjectIdeaUpdate({ ...values, ticket_id: "changed" })));
+assert(!("correlativo" in cleanProjectIdeaUpdate({ ...values, correlativo: "IDEA9999" })));
 
 const db = new PGlite();
 const ids = { admin: "00000000-0000-4000-8000-000000000001", leader: "00000000-0000-4000-8000-000000000002",
@@ -104,18 +108,25 @@ try {
   await assert.rejects(db.query("update tickets set alcance_proyecto='' where id=$1", [ticketId]), /obligatorios/);
   await assert.rejects(db.query("update tickets set tipo_atencion='Proyecto' where id=$1", [ticketId]), /conservar/);
   await db.exec("grant select, insert, update, delete on all tables in schema public to authenticated;");
-  // Restore the migration's column permissions after simulating Supabase grants on legacy tables.
-  await db.exec("revoke all on public.project_ideas from authenticated; grant select on public.project_ideas to authenticated; grant update (horas_estimacion,costo_cotizacion,estado_cotizacion,fecha_inicio,fecha_fin,estado_atencion,bloqueantes) on public.project_ideas to authenticated;");
+  // Simulate upgrading an existing idea from the original read-only metadata model.
+  await db.exec(`revoke all on public.project_ideas from authenticated;
+    grant select on public.project_ideas to authenticated;
+    alter table project_ideas drop column alcance_proyecto, drop column titulo_correo, drop column sociedad,
+      drop column usuario_solicitante, drop column responsables;`);
+  const editMigration = readFileSync(new URL("../supabase/edit_project_ideas.sql", import.meta.url), "utf8");
+  await db.exec(editMigration);
+  await db.exec(editMigration);
+  assert.equal((await db.query("select ticket_id from project_ideas where id=$1", [idea.id])).rows[0].ticket_id, ticketId);
   async function asUser(id, work) {
     await db.exec("set role authenticated");
     await db.query("select set_config('request.jwt.claim.sub', $1, false)", [id]);
     try { return await work(); } finally { await db.exec("reset role"); }
   }
-  for (const actor of [ids.leader, ids.worker, ids.admin, ids.bi]) {
+  for (const actor of [ids.leader, ids.worker, ids.bi, ids.inactive]) {
     await asUser(actor, async () => {
-      assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, actor === ids.admin ? 1 : 0);
+      assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, 0);
       const updated = await db.query("update project_ideas set costo_cotizacion=900 returning id");
-      assert.equal(updated.rows.length, 0, "Only project manager can update tracking");
+      assert.equal(updated.rows.length, 0, "Workers must not update ideas");
     });
   }
   await asUser(ids.manager, async () => {
@@ -123,22 +134,32 @@ try {
     assert.equal((await db.query("select count(*)::int n from tickets")).rows[0].n, 0, "Manager must not read raw tickets");
     assert.equal((await db.query("select count(*)::int n from resources")).rows[0].n, 0, "Manager must not read other modules");
     await assert.rejects(db.query("update project_ideas set ticket_id=gen_random_uuid()"), /permission denied/);
+    await assert.rejects(db.query("update project_ideas set idea_number=9999"), /permission denied/);
     await assert.rejects(db.query("delete from project_ideas"), /permission denied/);
     await assert.rejects(db.query("select public.create_project_planning_ticket($1::jsonb,$2::text[],$3::uuid)", [JSON.stringify(ticket), ["Leader"], ids.leader]), /permission denied/);
-    await db.query("update project_ideas set costo_cotizacion=123.45,horas_estimacion=8.5 where id=$1", [idea.id]);
+    await db.query(`update project_ideas set costo_cotizacion=123.45,horas_estimacion=8.5,
+      alcance_proyecto=$2, titulo_correo=$3, sociedad=$4, usuario_solicitante=$5, responsables=$6 where id=$1`,
+      [idea.id, values.alcance_proyecto, values.titulo_correo, values.sociedad, values.usuario_solicitante, values.responsables]);
     assert.equal(Number((await db.query("select costo_cotizacion from project_ideas")).rows[0].costo_cotizacion), 123.45);
   });
   assert.equal((await db.query("select updated_by from project_ideas")).rows[0].updated_by, ids.manager);
+  const original = (await db.query("select alcance_proyecto,subject_correo,formato,usuario_solicitante from tickets where id=$1", [ticketId])).rows[0];
+  assert.deepEqual(original, { alcance_proyecto: ticket.alcance_proyecto, subject_correo: ticket.subject_correo,
+    formato: ticket.formato, usuario_solicitante: ticket.usuario_solicitante }, "Idea edits must not change the ticket");
+  assert.deepEqual((await db.query("select resource_name from ticket_responsables where ticket_id=$1 order by resource_name", [ticketId])).rows.map(row => row.resource_name), ["Leader", "Worker"]);
   await db.exec(`drop policy "project ideas read manager" on project_ideas;
     create policy "project ideas read manager" on project_ideas for select to authenticated
       using (public.current_profile_role() = 'consulta_proyectos');`);
   await db.exec(readFileSync(new URL("../supabase/allow_admin_project_ideas.sql", import.meta.url), "utf8"));
   await asUser(ids.admin, async () => {
     assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, 1);
-    assert.equal((await db.query("update project_ideas set costo_cotizacion=999 returning id")).rows.length, 0);
+    assert.equal((await db.query("update project_ideas set costo_cotizacion=999 returning id")).rows.length, 1);
+    await assert.rejects(db.query("update project_ideas set ticket_id=gen_random_uuid()"), /permission denied/);
+    await assert.rejects(db.query("update project_ideas set id=gen_random_uuid()"), /permission denied/);
   });
   await db.exec(migration);
+  assert.equal((await db.query("select alcance_proyecto from project_ideas where id=$1", [idea.id])).rows[0].alcance_proyecto, values.alcance_proyecto, "Re-running migration must preserve idea corrections");
   await create({ ...ticket, codigo_tck: "ANT260002" });
   assert.equal((await db.query("select count(distinct correlativo)::int n from project_ideas")).rows[0].n, 2);
-  console.log("PASS: validation, upgrade/re-run, leader permissions, atomic creation, unique correlatives, empty dates, edit permissions and module isolation.");
+  console.log("PASS: validation, upgrade/re-run, leader permissions, atomic creation, unique correlatives, empty dates, admin/manager editing, fixed identifiers and original ticket preserved.");
 } finally { await db.close(); }

@@ -16,10 +16,16 @@ export function isProjectPlanning(ticket: { tipo_atencion: string; subcategoria_
 }
 
 export type ProjectIdeaUpdate = Pick<ProjectIdea,
-  "horas_estimacion" | "costo_cotizacion" | "estado_cotizacion" | "fecha_inicio" | "fecha_fin" | "estado_atencion" | "bloqueantes"
+  "alcance_proyecto" | "titulo_correo" | "sociedad" | "usuario_solicitante" | "responsables"
+  | "horas_estimacion" | "costo_cotizacion" | "estado_cotizacion" | "fecha_inicio" | "fecha_fin" | "estado_atencion" | "bloqueantes"
 >;
 
 export function cleanProjectIdeaUpdate(input: Record<string, unknown>): ProjectIdeaUpdate {
+  function requiredText(key: string, label: string) {
+    const value = input[key];
+    if (typeof value !== "string" || !value.trim()) throw new Error(`${label} es obligatorio.`);
+    return value.trim();
+  }
   function amount(key: string) {
     const value = input[key];
     if (value === null || value === "") return null;
@@ -46,7 +52,16 @@ export function cleanProjectIdeaUpdate(input: Record<string, unknown>): ProjectI
   const fecha_fin = date("fecha_fin");
   if (fecha_inicio && fecha_fin && fecha_fin < fecha_inicio) throw new Error("La fecha fin no puede ser anterior a la fecha inicio.");
   if (typeof input.bloqueantes !== "string") throw new Error("Los bloqueantes deben ser texto.");
+  if (!Array.isArray(input.responsables) || !input.responsables.length
+    || input.responsables.some((value) => typeof value !== "string" || !value.trim())) {
+    throw new Error("Selecciona al menos un responsable de la atencion.");
+  }
   return {
+    alcance_proyecto: requiredText("alcance_proyecto", "Alcance Proyecto"),
+    titulo_correo: requiredText("titulo_correo", "Titulo de Correo"),
+    sociedad: requiredText("sociedad", "Sociedad / empresa"),
+    usuario_solicitante: requiredText("usuario_solicitante", "Usuario solicitante"),
+    responsables: Array.from(new Set(input.responsables.map((value: string) => value.trim()))),
     horas_estimacion: amount("horas_estimacion"),
     costo_cotizacion: amount("costo_cotizacion"),
     estado_cotizacion: input.estado_cotizacion as ProjectIdea["estado_cotizacion"],

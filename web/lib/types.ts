@@ -178,3 +178,9 @@ export type ProjectIdea = {
   bloqueantes: string;
   updated_at: string;
 };
+
+export type ProjectIdeaCatalogs = {
+  sociedades: string[];
+  solicitantes: string[];
+  responsables: string[];
+};
