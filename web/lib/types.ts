@@ -172,7 +172,11 @@ export type ProjectIdea = {
   horas_estimacion: number | null;
   horas_reales: number | null;
   costo_cotizacion: number | null;
-  estado_cotizacion: "Por entregar" | "Por aprobar" | "Aprobado";
+  estado_cotizacion: "Por entregar" | "Por aprobar" | "Aprobado" | "Observada";
+  fecha_envio_estimacion: string | null;
+  fecha_envio_cotizacion: string | null;
+  proveedor_externo: boolean;
+  prioridad: boolean;
   fecha_inicio: string | null;
   fecha_fin: string | null;
   estado_atencion: "Por aprobar cotizacion" | "Por iniciar" | "En analisis" | "En desarrollo" | "En pruebas" | "En pase a produccion" | "Cerrado";

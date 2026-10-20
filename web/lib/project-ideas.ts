@@ -1,6 +1,6 @@
 import type { ProjectIdea } from "./types";
 
-export const quotationStatuses: ProjectIdea["estado_cotizacion"][] = ["Por entregar", "Por aprobar", "Aprobado"];
+export const quotationStatuses: ProjectIdea["estado_cotizacion"][] = ["Por entregar", "Por aprobar", "Aprobado", "Observada"];
 export const projectAttentionStatuses: ProjectIdea["estado_atencion"][] = [
   "Por aprobar cotizacion", "Por iniciar", "En analisis", "En desarrollo",
   "En pruebas", "En pase a produccion", "Cerrado"
@@ -18,6 +18,7 @@ export function isProjectPlanning(ticket: { tipo_atencion: string; subcategoria_
 export type ProjectIdeaUpdate = Pick<ProjectIdea,
   "alcance_proyecto" | "titulo_correo" | "sociedad" | "usuario_solicitante" | "responsables"
   | "horas_estimacion" | "horas_reales" | "costo_cotizacion" | "estado_cotizacion" | "fecha_inicio" | "fecha_fin" | "estado_atencion" | "bloqueantes"
+  | "fecha_envio_estimacion" | "fecha_envio_cotizacion" | "proveedor_externo" | "prioridad"
 >;
 
 export function cleanProjectIdeaUpdate(input: Record<string, unknown>): ProjectIdeaUpdate {
@@ -52,6 +53,9 @@ export function cleanProjectIdeaUpdate(input: Record<string, unknown>): ProjectI
   const fecha_fin = date("fecha_fin");
   if (fecha_inicio && fecha_fin && fecha_fin < fecha_inicio) throw new Error("La fecha fin no puede ser anterior a la fecha inicio.");
   if (typeof input.bloqueantes !== "string") throw new Error("Los bloqueantes deben ser texto.");
+  if (typeof input.proveedor_externo !== "boolean" || typeof input.prioridad !== "boolean") {
+    throw new Error("Proveedor externo y Prioridad deben ser Si o No.");
+  }
   if (!Array.isArray(input.responsables) || !input.responsables.length
     || input.responsables.some((value) => typeof value !== "string" || !value.trim())) {
     throw new Error("Selecciona al menos un responsable de la atencion.");
@@ -66,6 +70,10 @@ export function cleanProjectIdeaUpdate(input: Record<string, unknown>): ProjectI
     horas_reales: amount("horas_reales"),
     costo_cotizacion: amount("costo_cotizacion"),
     estado_cotizacion: input.estado_cotizacion as ProjectIdea["estado_cotizacion"],
+    fecha_envio_estimacion: date("fecha_envio_estimacion"),
+    fecha_envio_cotizacion: date("fecha_envio_cotizacion"),
+    proveedor_externo: input.proveedor_externo,
+    prioridad: input.prioridad,
     fecha_inicio, fecha_fin,
     estado_atencion: input.estado_atencion as ProjectIdea["estado_atencion"],
     bloqueantes: input.bloqueantes.trim()

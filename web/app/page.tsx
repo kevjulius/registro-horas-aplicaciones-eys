@@ -58,15 +58,15 @@ function isBiRole(profile: Profile | null) {
   return Boolean(profile && ["trabajador_bi", "adminbi", "administracion"].includes(profile.role));
 }
 
-function defaultPageFor(profile: Profile) {
-  if (profile.role === "consulta_proyectos" || (profile.role === "administracion"
+function defaultPageFor(profile: Profile, canPlan = false) {
+  if (profile.role === "consulta_proyectos" || ((profile.role === "administracion" || canPlan)
     && typeof window !== "undefined" && window.location.pathname === "/ideas-proyecto")) return "ideas";
   return isApplicationRole(profile) ? "guia" : "bi";
 }
 
-function canViewPage(profile: Profile, key: PageKey) {
+function canViewPage(profile: Profile, key: PageKey, canPlan = false) {
   if (profile.role === "consulta_proyectos") return key === "ideas";
-  if (key === "ideas") return profile.role === "administracion";
+  if (key === "ideas") return profile.role === "administracion" || canPlan;
   if (["tickets", "guia", "listado", "carga"].includes(key)) return isApplicationRole(profile);
   if (key === "bi" || key === "cargabi") return isBiRole(profile);
   if (key === "dashboard") return true;
@@ -113,7 +113,8 @@ export default function Home() {
         if (!currentProfile) return;
         setProfile(currentProfile);
         setPage(defaultPageFor(currentProfile));
-        await refresh(currentProfile);
+        const canPlan = await refresh(currentProfile);
+        setPage(defaultPageFor(currentProfile, canPlan));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -149,6 +150,7 @@ export default function Home() {
     setApplicationBudgets(budgetData);
     setCanPlanProjects(canPlan);
     setRefreshVersion((version) => version + 1);
+    return canPlan;
   }
 
   async function handleLogin(event: React.FormEvent) {
@@ -160,7 +162,8 @@ export default function Home() {
       if (!currentProfile) throw new Error("No existe un perfil activo para este usuario.");
       setProfile(currentProfile);
       setPage(defaultPageFor(currentProfile));
-      await refresh(currentProfile);
+      const canPlan = await refresh(currentProfile);
+      setPage(defaultPageFor(currentProfile, canPlan));
     } catch (error) {
       setLoginMessage(error instanceof Error ? error.message : "No se pudo ingresar.");
     }
@@ -190,6 +193,7 @@ export default function Home() {
   async function handleLogout() {
     await signOut();
     setProfile(null);
+    setCanPlanProjects(false);
     setMasters(null);
     setBiMasters(null);
     setEntries([]);
@@ -292,7 +296,7 @@ export default function Home() {
         </div>
         <nav className="menu">
           {menuItems
-            .filter((item) => canViewPage(profile, item.key))
+            .filter((item) => canViewPage(profile, item.key, canPlanProjects))
             .map((item) => (
               <button
                 key={item.key}
@@ -322,8 +326,8 @@ export default function Home() {
         {page === "guia" && <AttentionGuideView />}
         {page === "listado" && masters && <EntriesView profile={profile} masters={masters} tickets={tickets} entries={entries} onChanged={() => refresh(profile)} />}
         {page === "tickets" && masters && <TicketsView profile={profile} masters={masters} tickets={tickets} visibleResources={visibleResources} visibleApplications={visibleApplications} canPlanProjects={canPlanProjects} onChanged={() => refresh(profile)} />}
-        {page === "ideas" && ["consulta_proyectos", "administracion"].includes(profile.role)
-          && <ProjectIdeasView refreshVersion={refreshVersion} canEdit />}
+        {page === "ideas" && canViewPage(profile, "ideas", canPlanProjects)
+          && <ProjectIdeasView refreshVersion={refreshVersion} canEdit={["consulta_proyectos", "administracion"].includes(profile.role)} />}
         {page === "bi" && biMasters && <BiView profile={profile} masters={biMasters} entries={biEntries} onChanged={() => refresh(profile)} />}
         {page === "cargabi" && biMasters && <BiBulkUploadView profile={profile} masters={biMasters} onSaved={() => refresh(profile)} />}
         {page === "dashboard" &&

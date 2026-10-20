@@ -19,11 +19,15 @@ async function managerClients(request: Request) {
   const { data: auth, error: authError } = await admin.auth.getUser(token);
   if (authError || !auth.user) throw new AccessError("Sesion no valida.");
   const { data: profile, error } = await admin.from("profiles").select("role, active").eq("id", auth.user.id).single();
-  if (error || !profile?.active || !["consulta_proyectos", "administracion"].includes(profile.role)) {
-    throw new AccessError("Solo administracion y consulta_proyectos pueden ingresar a Ideas de Proyecto.");
-  }
+  if (error || !profile?.active) throw new AccessError("No existe un perfil activo para esta sesion.");
   const manager = createClient(url, anonKey, { ...options, global: { headers: { Authorization: `Bearer ${token}` } } });
-  return { admin, manager };
+  const canEdit = ["consulta_proyectos", "administracion"].includes(profile.role);
+  if (!canEdit) {
+    const { data: canPlan, error: permissionError } = await manager.rpc("current_profile_can_plan_projects");
+    if (permissionError) throw permissionError;
+    if (canPlan !== true) throw new AccessError("Solo los lideres de equipo y los gestores pueden ingresar a Ideas de Proyecto.");
+  }
+  return { admin, manager, canEdit };
 }
 
 function failure(error: unknown) {
@@ -34,13 +38,18 @@ function failure(error: unknown) {
 
 export async function GET(request: Request) {
   try {
-    const { admin } = await managerClients(request);
+    const { admin, manager, canEdit } = await managerClients(request);
     const ideas: ProjectIdea[] = [];
     const pageSize = 500;
     for (let offset = 0; ; offset += pageSize) {
+      // RLS determina las ideas visibles antes de consultar los datos del ticket con el servicio.
+      const { data: visible, error: accessError } = await manager.from("project_ideas").select("id")
+        .order("idea_number", { ascending: false }).range(offset, offset + pageSize - 1);
+      if (accessError) throw accessError;
+      if (!visible?.length) break;
       const { data, error } = await admin.from("project_ideas")
         .select("*, tickets!inner(codigo_tck, alcance_proyecto, subject_correo, formato, usuario_solicitante, ticket_responsables(resource_name))")
-        .order("idea_number", { ascending: false }).range(offset, offset + pageSize - 1);
+        .in("id", visible.map((row) => row.id)).order("idea_number", { ascending: false });
       if (error) throw error;
       for (const row of data ?? []) {
         const ticket = row.tickets as unknown as {
@@ -55,10 +64,14 @@ export async function GET(request: Request) {
           responsables: idea.responsables ?? ticket.ticket_responsables.map((link) => link.resource_name).sort(),
           horas_estimacion: idea.horas_estimacion === null ? null : Number(idea.horas_estimacion),
           horas_reales: idea.horas_reales == null ? null : Number(idea.horas_reales),
-          costo_cotizacion: idea.costo_cotizacion === null ? null : Number(idea.costo_cotizacion)
+          costo_cotizacion: idea.costo_cotizacion === null ? null : Number(idea.costo_cotizacion),
+          fecha_envio_estimacion: idea.fecha_envio_estimacion ?? null,
+          fecha_envio_cotizacion: idea.fecha_envio_cotizacion ?? null,
+          proveedor_externo: idea.proveedor_externo ?? false,
+          prioridad: idea.prioridad ?? false
         } as ProjectIdea);
       }
-      if (!data || data.length < pageSize) break;
+      if (visible.length < pageSize) break;
     }
     async function catalog(table: "companies" | "reporter_users" | "resources") {
       const names: string[] = [];
@@ -71,23 +84,24 @@ export async function GET(request: Request) {
       }
       return names;
     }
-    const [sociedades, solicitantes, responsables] = await Promise.all([
+    const [sociedades, solicitantes, responsables] = canEdit ? await Promise.all([
       catalog("companies"), catalog("reporter_users"), catalog("resources")
-    ]);
+    ]) : [[], [], []];
     return NextResponse.json({ ideas, catalogs: { sociedades, solicitantes, responsables } }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return failure(error); }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const { manager } = await managerClients(request);
+    const { manager, canEdit } = await managerClients(request);
+    if (!canEdit) throw new AccessError("Los lideres tienen acceso de solo lectura a Ideas de Proyecto.");
     const input = await request.json();
     if (typeof input.id !== "string" || !/^[0-9a-f-]{36}$/i.test(input.id)) throw new Error("Idea no valida.");
     const values = cleanProjectIdeaUpdate(input);
     const { data, error } = await manager.from("project_ideas").update(values).eq("id", input.id).select("id").single();
     if (error) {
       if (error.code === "PGRST204" || error.code === "42703") {
-        throw new Error("Ejecuta edit_project_ideas.sql en Supabase para habilitar la edicion completa de ideas.");
+        throw new Error("Ejecuta improve_project_ideas.sql en Supabase para habilitar los nuevos campos de ideas.");
       }
       throw error;
     }

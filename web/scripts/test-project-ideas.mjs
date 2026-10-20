@@ -5,17 +5,18 @@ import { PGlite } from "@electric-sql/pglite";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
-function loadTs(path) {
+function loadTs(path, modules = {}) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const module = { exports: {} };
-  new Function("module", "exports", "require", compiled)(module, module.exports, require);
+  new Function("module", "exports", "require", compiled)(module, module.exports, (name) => modules[name] ?? require(name));
   return module.exports;
 }
 const { cleanProjectIdeaUpdate, isProjectPlanning } = loadTs("../lib/project-ideas.ts");
 const values = { alcance_proyecto: "Alcance corregido", titulo_correo: "Titulo corregido", sociedad: "A125",
   usuario_solicitante: "Otro solicitante SPSA", responsables: ["Worker"],
   horas_estimacion: null, horas_reales: null, costo_cotizacion: null, estado_cotizacion: "Por entregar",
+  fecha_envio_estimacion: null, fecha_envio_cotizacion: null, proveedor_externo: false, prioridad: false,
   fecha_inicio: null, fecha_fin: null, estado_atencion: "Por aprobar cotizacion", bloqueantes: "" };
 assert(isProjectPlanning({ tipo_atencion: "Anteproyecto", subcategoria_atencion: " Planificaci\u00f3n " }));
 assert(!isProjectPlanning({ tipo_atencion: "Proyecto", subcategoria_atencion: "Planificacion" }));
@@ -24,14 +25,95 @@ assert.equal(cleanProjectIdeaUpdate({ ...values, costo_cotizacion: 123.45 }).cos
 assert.equal(cleanProjectIdeaUpdate({ ...values, horas_reales: 12.75 }).horas_reales, 12.75);
 assert.equal(cleanProjectIdeaUpdate({ ...values, horas_reales: 0 }).horas_reales, 0);
 assert.equal(cleanProjectIdeaUpdate({ ...values, horas_reales: "" }).horas_reales, null);
+assert.equal(cleanProjectIdeaUpdate({ ...values, estado_cotizacion: "Observada" }).estado_cotizacion, "Observada");
+assert.equal(cleanProjectIdeaUpdate({ ...values, fecha_envio_estimacion: "2026-10-20" }).fecha_envio_estimacion, "2026-10-20");
+assert.equal(cleanProjectIdeaUpdate({ ...values, proveedor_externo: true, prioridad: true }).prioridad, true);
 for (const patch of [{ costo_cotizacion: -1 }, { horas_estimacion: "4" }, { horas_estimacion: Infinity },
   { fecha_inicio: "2026-02-30" }, { fecha_inicio: "2026-10-20", fecha_fin: "2026-10-19" }, { estado_cotizacion: "Cerrado" },
   { alcance_proyecto: " " }, { titulo_correo: "" }, { sociedad: " " }, { usuario_solicitante: null }, { responsables: [] }, { responsables: [" "] },
-  { horas_reales: -1 }, { horas_reales: Infinity }, { horas_reales: "12.75" }]) {
+  { horas_reales: -1 }, { horas_reales: Infinity }, { horas_reales: "12.75" },
+  { fecha_envio_estimacion: "2026-02-30" }, { fecha_envio_cotizacion: "ayer" },
+  { proveedor_externo: "No" }, { prioridad: 1 }, { proveedor_externo: null }]) {
   assert.throws(() => cleanProjectIdeaUpdate({ ...values, ...patch }));
 }
 assert(!("ticket_id" in cleanProjectIdeaUpdate({ ...values, ticket_id: "changed" })));
 assert(!("correlativo" in cleanProjectIdeaUpdate({ ...values, correlativo: "IDEA9999" })));
+
+// Exercise the API's service-role enrichment without letting it bypass the RLS allowlist.
+const previousEnv = Object.fromEntries(["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"].map(key => [key, process.env[key]]));
+Object.assign(process.env, { NEXT_PUBLIC_SUPABASE_URL: "http://fixture.local", NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_ROLE_KEY: "service" });
+let apiRole = "trabajador_aplicaciones", apiActive = true, apiLeader = true;
+let apiVisible = [], apiPages = [], apiUpdates = [];
+const apiRow = id => ({ id, ticket_id: "ticket", correlativo: `IDEA${id}`, ...values,
+  tickets: { codigo_tck: "ANT260001", alcance_proyecto: "Original", subject_correo: "Titulo", formato: "Todos",
+    usuario_solicitante: "SPSA", ticket_responsables: [{ resource_name: "Leader" }] } });
+function apiClient(key) {
+  const service = key === "service";
+  return {
+    auth: { getUser: async () => ({ data: { user: { id: "actor" } } }) },
+    rpc: async () => ({ data: apiLeader }),
+    from(table) {
+      let ids, update, range;
+      const query = {
+        select() { return query; }, order() { return query; }, eq() { return query; },
+        in(column, allowed) { assert.equal(column, "id"); ids = allowed; return query; },
+        range(from, to) { range = [from, to]; return query; },
+        update(values) { assert(!service); update = values; return query; },
+        single() { return query; },
+        then(resolve, reject) {
+          return Promise.resolve().then(() => {
+            if (table === "profiles") return { data: { role: apiRole, active: apiActive } };
+            if (table !== "project_ideas") {
+              assert(service && ["consulta_proyectos", "administracion"].includes(apiRole), "Readonly leaders must not load global edit catalogs");
+              return { data: [] };
+            }
+            if (update) { apiUpdates.push(update); return { data: { id: "saved" } }; }
+            if (!service) {
+              assert(range, "Authorization must be paginated before enrichment");
+              return { data: apiVisible.slice(range[0], range[1] + 1).map(id => ({ id })) };
+            }
+            assert(ids?.length, "Service-role reads must always filter by authorized idea IDs");
+            apiPages.push(ids);
+            return { data: ids.map(apiRow) };
+          }).then(resolve, reject);
+        }
+      };
+      return query;
+    }
+  };
+}
+try {
+  const route = loadTs("../app/api/project-ideas/route.ts", {
+    "@supabase/supabase-js": { createClient: (_url, key) => apiClient(key) },
+    "@/lib/project-ideas": { cleanProjectIdeaUpdate }
+  });
+  const request = method => new Request("http://fixture.local/api/project-ideas", {
+    method, headers: { authorization: "Bearer fixture", "content-type": "application/json" },
+    ...(method === "PATCH" ? { body: JSON.stringify({ id: "20000000-0000-4000-8000-000000000001", ...values }) } : {})
+  });
+  apiVisible = Array.from({ length: 501 }, (_, i) => `visible-${i}`);
+  const response = await route.GET(request("GET"));
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).ideas.map(idea => idea.id), apiVisible);
+  assert.deepEqual(apiPages.map(page => page.length), [500, 1]);
+  assert.equal((await route.PATCH(request("PATCH"))).status, 403);
+  assert.equal(apiUpdates.length, 0);
+  apiVisible = []; apiPages = [];
+  assert.deepEqual((await (await route.GET(request("GET"))).json()).ideas, []);
+  assert.equal(apiPages.length, 0);
+  apiLeader = false;
+  assert.equal((await route.GET(request("GET"))).status, 403);
+  apiRole = "administracion";
+  assert.equal((await route.PATCH(request("PATCH"))).status, 200);
+  assert.deepEqual(apiUpdates[0], values);
+  apiActive = false;
+  assert.equal((await route.GET(request("GET"))).status, 403);
+  assert.equal((await route.PATCH(request("PATCH"))).status, 403);
+} finally {
+  for (const [key, value] of Object.entries(previousEnv)) {
+    if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
+}
 
 const db = new PGlite();
 const ids = { admin: "00000000-0000-4000-8000-000000000001", leader: "00000000-0000-4000-8000-000000000002",
@@ -107,6 +189,10 @@ try {
   assert.equal(idea.horas_reales, null);
   assert.equal(idea.costo_cotizacion, null);
   assert.equal(idea.estado_cotizacion, "Por entregar");
+  assert.equal(idea.fecha_envio_estimacion, null);
+  assert.equal(idea.fecha_envio_cotizacion, null);
+  assert.equal(idea.proveedor_externo, false);
+  assert.equal(idea.prioridad, false);
   assert.equal((await db.query("select count(*)::int n from ticket_responsables where ticket_id=$1", [ticketId])).rows[0].n, 2);
   await db.query("update tickets set fecha_termino='2026-10-21' where id=$1", [ticketId]);
   assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, 1, "Editing must not duplicate idea");
@@ -127,18 +213,38 @@ try {
   await db.exec(actualHoursMigration);
   assert.equal((await db.query("select horas_reales from project_ideas where id=$1", [idea.id])).rows[0].horas_reales, null);
   assert.equal((await db.query("select ticket_id from project_ideas where id=$1", [idea.id])).rows[0].ticket_id, ticketId);
+  // Upgrade an already populated database from before the new tracking fields and leader access.
+  await db.exec(`drop policy "project ideas read team leader" on project_ideas;
+    drop function public.current_leader_can_read_project_idea(uuid);
+    alter table project_ideas drop column fecha_envio_estimacion, drop column fecha_envio_cotizacion,
+      drop column proveedor_externo, drop column prioridad;
+    alter table project_ideas drop constraint project_ideas_estado_cotizacion_check;
+    alter table project_ideas add constraint project_ideas_estado_cotizacion_check
+      check (estado_cotizacion in ('Por entregar', 'Por aprobar', 'Aprobado'));`);
+  const improvements = readFileSync(new URL("../supabase/improve_project_ideas.sql", import.meta.url), "utf8");
+  await db.exec(improvements);
+  await db.exec(improvements);
+  assert.deepEqual((await db.query(`select fecha_envio_estimacion, fecha_envio_cotizacion, proveedor_externo, prioridad
+    from project_ideas where id=$1`, [idea.id])).rows[0], {
+    fecha_envio_estimacion: null, fecha_envio_cotizacion: null, proveedor_externo: false, prioridad: false
+  });
   async function asUser(id, work) {
     await db.exec("set role authenticated");
     await db.query("select set_config('request.jwt.claim.sub', $1, false)", [id]);
     try { return await work(); } finally { await db.exec("reset role"); }
   }
-  for (const actor of [ids.leader, ids.worker, ids.bi, ids.inactive]) {
+  for (const actor of [ids.worker, ids.bi, ids.inactive]) {
     await asUser(actor, async () => {
       assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, 0);
       const updated = await db.query("update project_ideas set costo_cotizacion=900 returning id");
       assert.equal(updated.rows.length, 0, "Workers must not update ideas");
     });
   }
+  await asUser(ids.leader, async () => {
+    assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, 1);
+    assert.equal((await db.query("update project_ideas set costo_cotizacion=900 returning id")).rows.length, 0);
+    assert.equal((await db.query("update project_ideas set prioridad=true returning id")).rows.length, 0);
+  });
   await asUser(ids.manager, async () => {
     assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, 1);
     assert.equal((await db.query("select count(*)::int n from tickets")).rows[0].n, 0, "Manager must not read raw tickets");
@@ -150,6 +256,9 @@ try {
     await assert.rejects(db.query("update project_ideas set horas_reales=-1 where id=$1", [idea.id]), /check constraint/);
     await db.query("update project_ideas set horas_reales=0 where id=$1", [idea.id]);
     await db.query("update project_ideas set horas_reales=null where id=$1", [idea.id]);
+    await db.query(`update project_ideas set fecha_envio_estimacion='2026-10-20', fecha_envio_cotizacion='2026-10-21',
+      proveedor_externo=true, prioridad=true, estado_cotizacion='Observada' where id=$1`, [idea.id]);
+    await assert.rejects(db.query("update project_ideas set estado_cotizacion='Invalido' where id=$1", [idea.id]), /check constraint/);
     await db.query(`update project_ideas set costo_cotizacion=123.45,horas_estimacion=8.5,horas_reales=12.75,
       alcance_proyecto=$2, titulo_correo=$3, sociedad=$4, usuario_solicitante=$5, responsables=$6 where id=$1`,
       [idea.id, values.alcance_proyecto, values.titulo_correo, values.sociedad, values.usuario_solicitante, values.responsables]);
@@ -174,7 +283,47 @@ try {
   await db.exec(migration);
   assert.equal((await db.query("select alcance_proyecto from project_ideas where id=$1", [idea.id])).rows[0].alcance_proyecto, values.alcance_proyecto, "Re-running migration must preserve idea corrections");
   assert.equal(Number((await db.query("select horas_reales from project_ideas where id=$1", [idea.id])).rows[0].horas_reales), 12.75);
+  await db.exec(improvements);
+  const tracked = (await db.query("select * from project_ideas where id=$1", [idea.id])).rows[0];
+  assert.equal(tracked.estado_cotizacion, "Observada");
+  assert.equal(tracked.prioridad, true);
+  assert.equal(tracked.proveedor_externo, true);
+  assert(tracked.fecha_envio_estimacion && tracked.fecha_envio_cotizacion);
   await create({ ...ticket, codigo_tck: "ANT260002" });
   assert.equal((await db.query("select count(distinct correlativo)::int n from project_ideas")).rows[0].n, 2);
-  console.log("PASS: validation, upgrade/re-run, leader permissions, atomic creation, unique correlatives, empty dates, admin/manager editing, fixed identifiers and original ticket preserved.");
+  const peer = "00000000-0000-4000-8000-000000000007";
+  const outsider = "00000000-0000-4000-8000-000000000008";
+  const otherTeam = "10000000-0000-4000-8000-000000000002";
+  for (const id of [peer, outsider]) {
+    await db.query("insert into auth.users values ($1)", [id]);
+    await db.query(`insert into profiles(id,email,display_name,role,resource_name,active)
+      values ($1,$2,'Leader','trabajador_aplicaciones','Leader',true)`, [id, `${id}@test.local`]);
+  }
+  await db.query("insert into teams(id,name) values ($1,'Otro equipo')", [otherTeam]);
+  await db.query("insert into profile_teams(profile_id,team_id,is_leader) values ($1,$2,true),($3,$4,true)", [peer, teamId, outsider, otherTeam]);
+  await create({ ...ticket, codigo_tck: "ANT-PEER" }, peer);
+  await create({ ...ticket, codigo_tck: "ANT-OUTSIDER" }, outsider);
+  async function visibleTickets(actor) {
+    return asUser(actor, async () => (await db.query("select ticket_id from project_ideas")).rows.map(row => row.ticket_id));
+  }
+  assert.equal((await visibleTickets(ids.leader)).length, 3, "Leader must see teammate-created ideas, not other teams");
+  assert.equal((await visibleTickets(peer)).length, 3);
+  assert.equal((await visibleTickets(outsider)).length, 1, "Shared responsible names must not grant access across teams");
+  assert.equal((await visibleTickets(ids.admin)).length, 4);
+  assert.equal((await visibleTickets(ids.manager)).length, 4);
+  await db.query("update profile_teams set is_leader=false where profile_id=$1", [peer]);
+  assert.equal((await visibleTickets(peer)).length, 0);
+  assert.equal((await visibleTickets(ids.leader)).length, 3, "Past leaders' ideas remain visible in their team");
+  await db.query("update teams set active=false where id=$1", [teamId]);
+  assert.equal((await visibleTickets(ids.leader)).length, 0);
+  await db.query("update teams set active=true where id=$1", [teamId]);
+  await db.query("update profiles set active=false where id=$1", [ids.leader]);
+  assert.equal((await visibleTickets(ids.leader)).length, 0);
+  await db.query("update profiles set active=true where id=$1", [ids.leader]);
+  // Old migrations must not remove team visibility or the new editable columns.
+  await db.exec(editMigration);
+  await db.exec(migration);
+  assert.equal((await visibleTickets(ids.leader)).length, 3);
+  await asUser(ids.manager, () => db.query("update project_ideas set prioridad=false,proveedor_externo=false,fecha_envio_estimacion=null,fecha_envio_cotizacion=null where id=$1", [idea.id]));
+  console.log("PASS: validation, upgrades, defaults, Observada, team-scoped leader reads, read-only leaders, inactive/team isolation, admin/manager editing, atomic creation and original tickets preserved.");
 } finally { await db.close(); }
