@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { Download, Plus, Save, Trash2 } from "lucide-react";
 import { today } from "@/components/app-shared";
 import { saveMasters, saveProfiles, saveTeams } from "@/lib/repository";
+import { applicationMastersCsv, downloadMasterCsv } from "@/lib/master-export";
 import type { MasterData, Profile, Team } from "@/lib/types";
 
 type MasterListKey = Exclude<keyof MasterData, "aplicacionesDetalle" | "tiposAtencionDetalle" | "attentionRules">;
@@ -308,10 +309,16 @@ export function AdminView({
           <h2>Administracion</h2>
           <p className="muted">Gestiona usuarios y listas maestras sin depender de Excel.</p>
         </div>
-        <div className="segmented">
-          <button className={adminSection === "maestras" ? "active" : ""} onClick={() => { setAdminMessage(""); setAdminSection("maestras"); }}>Maestras</button>
-          <button className={adminSection === "usuarios" ? "active" : ""} onClick={() => { setAdminMessage(""); setAdminSection("usuarios"); }}>Usuarios</button>
-          <button className={adminSection === "equipos" ? "active" : ""} onClick={() => { setAdminMessage(""); setAdminSection("equipos"); }}>Equipos</button>
+        <div className="toolbar">
+          {adminSection === "maestras" && <button className="secondary" type="button"
+            onClick={() => downloadMasterCsv(applicationMastersCsv(localMasters), `maestras_aplicaciones_${today()}.csv`)}>
+            <Download size={16} /> Exportar maestras
+          </button>}
+          <div className="segmented">
+            <button className={adminSection === "maestras" ? "active" : ""} onClick={() => { setAdminMessage(""); setAdminSection("maestras"); }}>Maestras</button>
+            <button className={adminSection === "usuarios" ? "active" : ""} onClick={() => { setAdminMessage(""); setAdminSection("usuarios"); }}>Usuarios</button>
+            <button className={adminSection === "equipos" ? "active" : ""} onClick={() => { setAdminMessage(""); setAdminSection("equipos"); }}>Equipos</button>
+          </div>
         </div>
       </div>
 

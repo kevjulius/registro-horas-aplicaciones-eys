@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Download, Plus, Trash2 } from "lucide-react";
 import { saveBiMasters } from "@/lib/repository";
+import { today } from "@/components/app-shared";
+import { biMastersCsv, downloadMasterCsv } from "@/lib/master-export";
 import type { BiMasterData } from "@/lib/types";
 
 type BiMasterKey = "recursos" | "servicios" | "atenciones" | "estados" | "formatos";
@@ -89,6 +91,10 @@ export function AdminBiView({ masters, onChanged }: { masters: BiMasterData; onC
           <h2>Administracion BI</h2>
           <p className="muted">Gestiona las maestras propias del flujo BI.</p>
         </div>
+        <button className="secondary" type="button"
+          onClick={() => downloadMasterCsv(biMastersCsv(localMasters), `maestras_bi_${today()}.csv`)}>
+          <Download size={16} /> Exportar maestras
+        </button>
       </div>
 
       <div className="admin-layout">

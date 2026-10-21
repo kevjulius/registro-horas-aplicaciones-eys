@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:project-ideas": "node scripts/test-project-ideas.mjs"
+    "test:project-ideas": "node scripts/test-project-ideas.mjs",
+    "test:master-export": "node scripts/test-master-export.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
