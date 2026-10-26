@@ -101,7 +101,10 @@ export async function PATCH(request: Request) {
     const { data, error } = await manager.from("project_ideas").update(values).eq("id", input.id).select("id").single();
     if (error) {
       if (error.code === "PGRST204" || error.code === "42703") {
-        throw new Error("Ejecuta improve_project_ideas.sql en Supabase para habilitar los nuevos campos de ideas.");
+        throw new Error(`Faltan columnas de Ideas de Proyecto. Ejecuta improve_project_ideas.sql actualizado en Supabase. Detalle: ${error.message}`);
+      }
+      if (error.code === "42501") {
+        throw new Error(`Faltan permisos para guardar Ideas de Proyecto. Ejecuta improve_project_ideas.sql actualizado en Supabase para restaurarlos. Detalle: ${error.message}`);
       }
       throw error;
     }

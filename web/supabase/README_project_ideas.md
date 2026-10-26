@@ -6,7 +6,7 @@
 2. En Administracion > Equipos, agregar a los usuarios como miembros, marcar los lideres y guardar. Los lideres deben ser cuentas activas de Aplicaciones.
 3. En Administracion > Usuarios, crear o asignar el rol `consulta_proyectos` a las cuentas que gestionaran el seguimiento administrativo. No requieren recurso.
 4. Estas cuentas ingresan directamente a Ideas de Proyecto. Tambien pueden entrar por `/ideas-proyecto`.
-5. Para instalaciones existentes, ejecutar `improve_project_ideas.sql` despues de las migraciones anteriores. Agrega lectura por equipo para lideres, los cuatro campos de seguimiento y el estado Observada. No elimina datos ni cambia tickets.
+5. Para instalaciones existentes, ejecutar `improve_project_ideas.sql` actualizado. Incluye las columnas de edicion anteriores, lectura por equipo para lideres, los cuatro campos de seguimiento y el estado Observada. Restaura los permisos completos de edicion sin habilitar cambios en correlativo ni ticket. No elimina datos ni cambia tickets.
 
 ## Funcionamiento
 
@@ -26,3 +26,7 @@
 ## Verificacion Local
 
 `npm run test:project-ideas` prueba la migracion contra PostgreSQL en memoria (PGlite), sin conectarse a Supabase. Verifica liderazgo, campos obligatorios, atomicidad, correlativos, permisos de edicion y aislamiento del nuevo rol.
+
+## Permisos Despues de Migraciones Anteriores
+
+Una version antigua de `edit_project_ideas.sql`, ejecutada despues de `improve_project_ideas.sql`, retiraba los permisos de actualizacion de las cuatro columnas nuevas. Esto producia `permission denied for table project_ideas` al guardar. Ejecutar `improve_project_ideas.sql` actualizado restaura la lista completa de permisos. Ambos scripts actualizados preservan los permisos al repetirse en cualquier orden.

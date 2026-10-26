@@ -44,6 +44,7 @@ const previousEnv = Object.fromEntries(["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC
 Object.assign(process.env, { NEXT_PUBLIC_SUPABASE_URL: "http://fixture.local", NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_ROLE_KEY: "service" });
 let apiRole = "trabajador_aplicaciones", apiActive = true, apiLeader = true;
 let apiVisible = [], apiPages = [], apiUpdates = [];
+let apiUpdateError = null;
 const apiRow = id => ({ id, ticket_id: "ticket", correlativo: `IDEA${id}`, ...values,
   tickets: { codigo_tck: "ANT260001", alcance_proyecto: "Original", subject_correo: "Titulo", formato: "Todos",
     usuario_solicitante: "SPSA", ticket_responsables: [{ resource_name: "Leader" }] } });
@@ -67,7 +68,10 @@ function apiClient(key) {
               assert(service && ["consulta_proyectos", "administracion"].includes(apiRole), "Readonly leaders must not load global edit catalogs");
               return { data: [] };
             }
-            if (update) { apiUpdates.push(update); return { data: { id: "saved" } }; }
+            if (update) {
+              if (apiUpdateError) return { error: apiUpdateError };
+              apiUpdates.push(update); return { data: { id: "saved" } };
+            }
             if (!service) {
               assert(range, "Authorization must be paginated before enrichment");
               return { data: apiVisible.slice(range[0], range[1] + 1).map(id => ({ id })) };
@@ -106,6 +110,18 @@ try {
   apiRole = "administracion";
   assert.equal((await route.PATCH(request("PATCH"))).status, 200);
   assert.deepEqual(apiUpdates[0], values);
+  for (const [code, message, expected] of [
+    ["42501", "permission denied for table project_ideas", "Faltan permisos"],
+    ["42703", "column project_ideas.alcance_proyecto does not exist", "Faltan columnas"],
+    ["PGRST204", "Could not find the alcance_proyecto column in the schema cache", "Faltan columnas"]
+  ]) {
+    apiUpdateError = { code, message };
+    const failed = await route.PATCH(request("PATCH"));
+    assert.equal(failed.status, 400);
+    const { error } = await failed.json();
+    assert(error.includes(expected) && error.includes(message) && error.includes("improve_project_ideas.sql actualizado"));
+  }
+  apiUpdateError = null;
   apiActive = false;
   assert.equal((await route.GET(request("GET"))).status, 403);
   assert.equal((await route.PATCH(request("PATCH"))).status, 403);
@@ -217,7 +233,9 @@ try {
   await db.exec(`drop policy "project ideas read team leader" on project_ideas;
     drop function public.current_leader_can_read_project_idea(uuid);
     alter table project_ideas drop column fecha_envio_estimacion, drop column fecha_envio_cotizacion,
-      drop column proveedor_externo, drop column prioridad;
+      drop column proveedor_externo, drop column prioridad,
+      drop column alcance_proyecto, drop column titulo_correo, drop column sociedad,
+      drop column usuario_solicitante, drop column responsables, drop column horas_reales;
     alter table project_ideas drop constraint project_ideas_estado_cotizacion_check;
     alter table project_ideas add constraint project_ideas_estado_cotizacion_check
       check (estado_cotizacion in ('Por entregar', 'Por aprobar', 'Aprobado'));`);
@@ -233,6 +251,18 @@ try {
     await db.query("select set_config('request.jwt.claim.sub', $1, false)", [id]);
     try { return await work(); } finally { await db.exec("reset role"); }
   }
+  // Reproduce running the old edit migration after improve, then verify the repair.
+  await db.exec(`revoke update on project_ideas from authenticated;
+    grant update (alcance_proyecto, titulo_correo, sociedad, usuario_solicitante, responsables,
+      horas_estimacion, horas_reales, costo_cotizacion, estado_cotizacion, fecha_inicio, fecha_fin, estado_atencion, bloqueantes)
+      on project_ideas to authenticated;`);
+  await assert.rejects(asUser(ids.manager, () => db.query("update project_ideas set prioridad=true where id=$1", [idea.id])),
+    error => error.code === "42501", "Old script order must reproduce the reported permission error");
+  await db.exec(improvements);
+  const editable = (await db.query(`select column_name from information_schema.columns
+    where table_schema='public' and table_name='project_ideas'
+      and has_column_privilege('authenticated', 'public.project_ideas', column_name, 'UPDATE')`)).rows.map(row => row.column_name).sort();
+  assert.deepEqual(editable, Object.keys(values).sort(), "Grant only the API's editable fields, never the identifiers");
   for (const actor of [ids.worker, ids.bi, ids.inactive]) {
     await asUser(actor, async () => {
       assert.equal((await db.query("select count(*)::int n from project_ideas")).rows[0].n, 0);
@@ -322,6 +352,7 @@ try {
   await db.query("update profiles set active=true where id=$1", [ids.leader]);
   // Old migrations must not remove team visibility or the new editable columns.
   await db.exec(editMigration);
+  await asUser(ids.manager, () => db.query("update project_ideas set prioridad=false,proveedor_externo=false,fecha_envio_estimacion=null,fecha_envio_cotizacion=null where id=$1", [idea.id]));
   await db.exec(migration);
   assert.equal((await visibleTickets(ids.leader)).length, 3);
   await asUser(ids.manager, () => db.query("update project_ideas set prioridad=false,proveedor_externo=false,fecha_envio_estimacion=null,fecha_envio_cotizacion=null where id=$1", [idea.id]));

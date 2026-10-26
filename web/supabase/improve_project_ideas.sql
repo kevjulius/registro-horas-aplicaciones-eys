@@ -1,8 +1,14 @@
--- Ejecutar despues de add_project_ideas.sql y edit_project_ideas.sql.
+-- Ejecutar despues de add_project_ideas.sql. Incluye las columnas de edicion anteriores.
 -- No modifica los tickets ni reinicia correlativos.
 begin;
 
 alter table public.project_ideas
+  add column if not exists horas_reales numeric(12,2) check (horas_reales >= 0),
+  add column if not exists alcance_proyecto text check (alcance_proyecto is null or btrim(alcance_proyecto) <> ''),
+  add column if not exists titulo_correo text check (titulo_correo is null or btrim(titulo_correo) <> ''),
+  add column if not exists sociedad text check (sociedad is null or btrim(sociedad) <> ''),
+  add column if not exists usuario_solicitante text check (usuario_solicitante is null or btrim(usuario_solicitante) <> ''),
+  add column if not exists responsables text[] check (responsables is null or (cardinality(responsables) > 0 and array_position(responsables, null) is null)),
   add column if not exists fecha_envio_estimacion date,
   add column if not exists fecha_envio_cotizacion date,
   add column if not exists proveedor_externo boolean not null default false,
@@ -11,6 +17,15 @@ alter table public.project_ideas
 alter table public.project_ideas drop constraint if exists project_ideas_estado_cotizacion_check;
 alter table public.project_ideas add constraint project_ideas_estado_cotizacion_check
   check (estado_cotizacion in ('Por entregar', 'Por aprobar', 'Aprobado', 'Observada'));
+
+alter table public.project_ideas enable row level security;
+drop policy if exists "project ideas read manager" on public.project_ideas;
+create policy "project ideas read manager" on public.project_ideas for select to authenticated
+  using (public.current_profile_role() in ('consulta_proyectos', 'administracion'));
+drop policy if exists "project ideas update manager" on public.project_ideas;
+create policy "project ideas update manager" on public.project_ideas for update to authenticated
+  using (public.current_profile_role() in ('consulta_proyectos', 'administracion'))
+  with check (public.current_profile_role() in ('consulta_proyectos', 'administracion'));
 
 -- La pertenencia se determina por el creador del ticket, no por sus responsables editables.
 create or replace function public.current_leader_can_read_project_idea(p_ticket_id uuid)
@@ -34,7 +49,12 @@ drop policy if exists "project ideas read team leader" on public.project_ideas;
 create policy "project ideas read team leader" on public.project_ideas for select to authenticated
   using (public.current_leader_can_read_project_idea(ticket_id));
 
-grant update (fecha_envio_estimacion, fecha_envio_cotizacion, proveedor_externo, prioridad)
+-- REVOKE UPDATE tambien retira permisos por columna; restaurar siempre la lista completa.
+revoke update on public.project_ideas from authenticated;
+grant select on public.project_ideas to authenticated;
+grant update (alcance_proyecto, titulo_correo, sociedad, usuario_solicitante, responsables,
+  horas_estimacion, horas_reales, costo_cotizacion, estado_cotizacion, fecha_inicio, fecha_fin, estado_atencion, bloqueantes,
+  fecha_envio_estimacion, fecha_envio_cotizacion, proveedor_externo, prioridad)
   on public.project_ideas to authenticated;
 
 notify pgrst, 'reload schema';
